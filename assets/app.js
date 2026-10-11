@@ -18,13 +18,15 @@
     query: '',
     viewMode: 'files',
     pendingTags: [],
-    tagAction: null
+    tagAction: null,
+    translating: false,
+    translationClient: null
   };
 
   var els = {};
   ['libraryPath','chooseRoot','refreshTree','paperCount','manageTags','libraryScope','treeMode','treeSearch','statusFilters','fileTree',
    'emptyState','paperView','paperTitle','paperMeta','pdfName','pdfFrame','markdownPane',
-   'markdownContent','readingLayout','readerDivider','togglePdf','collapsePdf','pdfRail','sendSelectionToAi','annotateSelection','toggleNotes','saveState',
+   'markdownContent','readingLayout','readerDivider','togglePdf','collapsePdf','pdfRail','sendSelectionToAi','translateSelection','annotateSelection','toggleNotes','saveState',
    'notesPanel','closeNotes','annotationCount','paperNote','annotationList','annotationDialog',
    'dialogTitle','selectedQuote','annotationText','confirmAnnotation','metadataDialog','editMetadata','customTitle','tagChips','availableTags','tagInput','addTag','saveMetadata','tagManagerDialog','tagManagerSummary','tagManagerSearch','tagManagerList','tagActionDialog','tagActionTitle','tagActionDescription','tagActionInput','tagSuggestions','confirmTagAction','favoritePaper','toast','aiPanel','aiRail','collapseAi','aiChatRoot','notesResizer','aiResizer'].forEach(function (id) {
     els[id] = document.getElementById(id);
@@ -201,6 +203,7 @@
       state.selectedText = null;
       state.selectedImage = null;
       els.annotateSelection.disabled = true;
+      els.translateSelection.disabled = true;
       els.sendSelectionToAi.disabled = true;
       renderTree();
       els.emptyState.classList.add('hidden');
@@ -334,12 +337,12 @@
   function captureSelection() {
     if (!state.currentPaper) return;
     var selection = window.getSelection();
-    if (!selection || selection.isCollapsed || !selection.rangeCount) { state.selectedText = null; els.annotateSelection.disabled = true; if (!state.selectedImage) els.sendSelectionToAi.disabled = true; return; }
+    if (!selection || selection.isCollapsed || !selection.rangeCount) { state.selectedText = null; els.annotateSelection.disabled = true; els.translateSelection.disabled = true; if (!state.selectedImage) els.sendSelectionToAi.disabled = true; return; }
     var range = selection.getRangeAt(0);
-    if (!els.markdownContent.contains(range.commonAncestorContainer)) { state.selectedText = null; els.annotateSelection.disabled = true; if (!state.selectedImage) els.sendSelectionToAi.disabled = true; return; }
+    if (!els.markdownContent.contains(range.commonAncestorContainer)) { state.selectedText = null; els.annotateSelection.disabled = true; els.translateSelection.disabled = true; if (!state.selectedImage) els.sendSelectionToAi.disabled = true; return; }
     var rawSelection = selection.toString();
     var quote = rawSelection.trim();
-    if (!quote) { state.selectedText = null; els.annotateSelection.disabled = true; if (!state.selectedImage) els.sendSelectionToAi.disabled = true; return; }
+    if (!quote) { state.selectedText = null; els.annotateSelection.disabled = true; els.translateSelection.disabled = true; if (!state.selectedImage) els.sendSelectionToAi.disabled = true; return; }
     if (quote.length > 1500) quote = quote.substring(0, 1500);
     var beforeRange = document.createRange();
     beforeRange.selectNodeContents(els.markdownContent);
@@ -354,6 +357,7 @@
       suffix: full.substring(start + quote.length, start + quote.length + 50)
     };
     els.annotateSelection.disabled = false;
+    els.translateSelection.disabled = state.translating;
     state.selectedImage = null;
     Array.prototype.forEach.call(els.markdownContent.querySelectorAll('img.ai-image-selected'), function (image) { image.classList.remove('ai-image-selected'); });
     els.sendSelectionToAi.disabled = false;
@@ -368,6 +372,7 @@
     state.selectedImage = { file: file, url: image.src };
     state.selectedText = null;
     els.annotateSelection.disabled = true;
+    els.translateSelection.disabled = true;
     els.sendSelectionToAi.disabled = false;
     els.sendSelectionToAi.textContent = '发送图片';
   }
@@ -388,8 +393,53 @@
       window.getSelection().removeAllRanges();
       state.selectedText = null;
       els.annotateSelection.disabled = true;
+      els.translateSelection.disabled = true;
       els.sendSelectionToAi.disabled = true;
     }
+  }
+
+  function translateSelection() {
+    if (!state.selectedText || state.translating || !state.currentPaper) return;
+    var selection = {
+      quote: state.selectedText.quote,
+      prefix: state.selectedText.prefix,
+      suffix: state.selectedText.suffix
+    };
+    var paperPath = state.currentPath;
+    state.translating = true;
+    els.translateSelection.disabled = true;
+    els.translateSelection.textContent = '翻译中…';
+    els.annotateSelection.disabled = true;
+    els.sendSelectionToAi.disabled = true;
+    if (!state.translationClient) {
+      state.translationClient = new window.ZoteroCodexModules.CodexClient.BrowserCodexClient({ log: function () {} });
+    }
+    state.translationClient.translateText(selection.quote).then(function (translation) {
+      if (!state.currentPaper || state.currentPath !== paperPath) {
+        showToast('论文已切换，本次译文未保存');
+        return;
+      }
+      var now = new Date().toISOString();
+      var annotation = {
+        id: makeId(), quote: selection.quote, prefix: selection.prefix, suffix: selection.suffix,
+        comment: translation, kind: 'translation', createdAt: now, updatedAt: now
+      };
+      state.currentPaper.review.annotations.push(annotation);
+      applyOneHighlight(annotation);
+      renderAnnotations();
+      scheduleSave();
+      window.getSelection().removeAllRanges();
+      state.selectedText = null;
+      showToast('译文已保存到批注');
+    }).catch(function (error) {
+      showToast('翻译失败：' + error.message);
+    }).then(function () {
+      state.translating = false;
+      els.translateSelection.textContent = 'AI 翻译';
+      els.translateSelection.disabled = !state.selectedText;
+      els.annotateSelection.disabled = !state.selectedText;
+      els.sendSelectionToAi.disabled = !state.selectedText && !state.selectedImage;
+    });
   }
 
   function openNewAnnotationDialog() {
@@ -424,7 +474,7 @@
     } else {
       var annotation = {
         id: makeId(), quote: state.selectedText.quote, prefix: state.selectedText.prefix,
-        suffix: state.selectedText.suffix, comment: comment, createdAt: now, updatedAt: now
+        suffix: state.selectedText.suffix, comment: comment, kind: 'note', createdAt: now, updatedAt: now
       };
       state.currentPaper.review.annotations.push(annotation);
       applyOneHighlight(annotation);
@@ -433,6 +483,7 @@
     window.getSelection().removeAllRanges();
     state.selectedText = null;
     els.annotateSelection.disabled = true;
+    els.translateSelection.disabled = true;
     renderAnnotations();
     els.notesPanel.classList.remove('hidden');
     scheduleSave();
@@ -467,13 +518,14 @@
 
   function renderAnnotations() {
     var annotations = state.currentPaper ? state.currentPaper.review.annotations : [];
-    els.annotationCount.textContent = annotations.length + ' 条文字批注';
+    els.annotationCount.textContent = annotations.length + ' 条批注';
     if (!annotations.length) {
       els.annotationList.innerHTML = '<div class="annotation-empty">在 Markdown 中选择一段文字，<br>即可添加与原文绑定的批注。</div>';
       return;
     }
     els.annotationList.innerHTML = annotations.map(function (annotation) {
       return '<article class="annotation-card" data-id="' + escapeHtml(annotation.id) + '">' +
+        (annotation.kind === 'translation' ? '<div class="annotation-kind">AI 翻译</div>' : '') +
         '<div class="annotation-quote" title="定位到原文">“' + escapeHtml(annotation.quote) + '”</div>' +
         '<div class="annotation-comment">' + escapeHtml(annotation.comment) + '</div>' +
         '<div class="annotation-card-footer"><span>' + formatDate(annotation.updatedAt || annotation.createdAt) + '</span>' +
@@ -926,6 +978,7 @@
     if (image && els.markdownContent.contains(image)) selectMarkdownImage(image);
   });
   els.sendSelectionToAi.addEventListener('click', sendSelectionToAi);
+  els.translateSelection.addEventListener('click', translateSelection);
   els.annotateSelection.addEventListener('click', openNewAnnotationDialog);
   els.confirmAnnotation.addEventListener('click', confirmAnnotation);
   els.editMetadata.addEventListener('click', openMetadataDialog);

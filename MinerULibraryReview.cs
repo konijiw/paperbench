@@ -20,6 +20,7 @@ internal static class MinerULibraryReview
     private static string AppDirectory;
     private static string StateDirectory;
     private static string PapersStateDirectory;
+    private static string TranslationWorkspaceDirectory;
     private static string LibraryRoot;
     private static TcpListener Listener;
     private static DateTime LastHeartbeat = DateTime.UtcNow;
@@ -36,7 +37,9 @@ internal static class MinerULibraryReview
             AppDirectory = Path.GetDirectoryName(Assembly.GetExecutingAssembly().Location);
             StateDirectory = Path.Combine(AppDirectory, "state", "ai-literature-reader");
             PapersStateDirectory = Path.Combine(StateDirectory, "papers");
+            TranslationWorkspaceDirectory = Path.Combine(StateDirectory, "translation-workspace");
             Directory.CreateDirectory(PapersStateDirectory);
+            Directory.CreateDirectory(TranslationWorkspaceDirectory);
             LoadSettings();
 
             Listener = new TcpListener(IPAddress.Loopback, 0);
@@ -839,6 +842,7 @@ internal static class MinerULibraryReview
         public string prefix { get; set; }
         public string suffix { get; set; }
         public string comment { get; set; }
+        public string kind { get; set; }
         public string createdAt { get; set; }
         public string updatedAt { get; set; }
     }
@@ -874,7 +878,13 @@ internal static class MinerULibraryReview
         public object ConnectInfo()
         {
             EnsureStarted();
-            return new { connected = process != null && !process.HasExited, binaryPath = binaryPath, account = account };
+            return new
+            {
+                connected = process != null && !process.HasExited,
+                binaryPath = binaryPath,
+                account = account,
+                translationWorkspace = TranslationWorkspaceDirectory
+            };
         }
 
         public object Request(string method, object parameters)
