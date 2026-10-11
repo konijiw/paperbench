@@ -1,0 +1,204 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>AI辅助文献阅读器</title>
+  <link rel="stylesheet" href="/assets/app.css">
+  <link rel="stylesheet" href="/assets/zcs/katex.css">
+  <link rel="stylesheet" href="/assets/zcs/style.css">
+  <script src="/assets/mathjax-config.js"></script>
+</head>
+<body>
+  <header class="app-header">
+    <div class="brand">
+      <span class="brand-mark">AI</span>
+      <div><strong>AI辅助文献阅读器</strong><small id="libraryPath">正在读取论文库…</small></div>
+    </div>
+    <div class="header-actions">
+      <button id="chooseRoot" class="button secondary">打开文件夹</button>
+      <button id="refreshTree" class="button icon-button" title="刷新论文库" aria-label="刷新论文库">↻</button>
+    </div>
+  </header>
+
+  <main class="app-shell">
+    <aside class="explorer">
+      <div class="explorer-heading">
+        <span>论文库</span>
+        <div class="explorer-heading-actions"><button id="manageTags" class="plain-text-button">标签管理</button><span id="paperCount" class="count-badge">0</span></div>
+      </div>
+      <div id="libraryScope" class="library-scope" aria-label="论文范围">
+        <button data-scope="all" class="active">全部论文</button>
+        <button data-scope="favorites">收藏</button>
+        <button data-scope="recent">最近阅读</button>
+      </div>
+      <div id="treeMode" class="tree-mode" aria-label="论文库显示方式">
+        <button data-mode="files" class="active">文件目录</button>
+        <button data-mode="tags">标签分类</button>
+      </div>
+      <div class="search-box">
+        <span>⌕</span>
+        <input id="treeSearch" type="search" placeholder="筛选论文名称">
+      </div>
+      <div class="status-filters" id="statusFilters">
+        <button data-filter="all" class="active">全部</button>
+        <button data-filter="unread">未读</button>
+        <button data-filter="skimmed">粗读</button>
+        <button data-filter="deep">精读</button>
+      </div>
+      <nav id="fileTree" class="file-tree" aria-label="论文目录">
+        <div class="tree-loading">正在扫描论文目录…</div>
+      </nav>
+    </aside>
+
+    <section class="workspace">
+      <div id="emptyState" class="empty-state">
+        <div class="empty-illustration">⌁</div>
+        <h1>选择一篇论文开始阅读</h1>
+        <p>从左侧论文库中选择包含 Markdown 和原始 PDF 的论文。</p>
+      </div>
+
+      <div id="paperView" class="paper-view hidden">
+        <div class="paper-toolbar">
+          <div class="paper-identity">
+            <strong id="paperTitle"></strong>
+            <span id="paperMeta"></span>
+          </div>
+          <div class="reading-status" aria-label="阅读状态">
+            <button data-status="unread">未读</button>
+            <button data-status="skimmed">粗读</button>
+            <button data-status="deep">精读</button>
+          </div>
+          <button id="togglePdf" class="button secondary">展开 PDF</button>
+          <button id="sendSelectionToAi" class="button secondary" disabled>发给 AI</button>
+          <button id="annotateSelection" class="button accent" disabled>批注</button>
+          <button id="favoritePaper" class="button secondary" title="收藏当前论文">☆ 收藏</button>
+          <button id="editMetadata" class="button secondary">标题与标签</button>
+          <button id="toggleNotes" class="button secondary">批注栏</button>
+          <span id="saveState" class="save-state">已保存</span>
+        </div>
+
+        <div class="reading-layout pdf-collapsed" id="readingLayout">
+          <section class="pdf-pane">
+            <div class="pane-label"><span>原始 PDF</span><span id="pdfName"></span><button id="collapsePdf" class="plain-icon" title="折叠 PDF">‹</button></div>
+            <iframe id="pdfFrame" title="原始 PDF"></iframe>
+            <button id="pdfRail" class="pdf-rail" title="展开原始 PDF"><span>PDF</span><span>›</span></button>
+          </section>
+          <div id="readerDivider" class="reader-divider" title="拖动调整宽度"></div>
+          <section class="markdown-pane" id="markdownPane">
+            <div class="pane-label"><span>渲染 Markdown</span><span>可选择文字添加批注</span></div>
+            <article id="markdownContent" class="markdown-content"><p class="loading-text">正在渲染…</p></article>
+          </section>
+        </div>
+      </div>
+    </section>
+
+    <aside id="notesPanel" class="notes-panel hidden">
+      <div id="notesResizer" class="side-panel-resizer" title="拖动调整批注栏宽度"></div>
+      <div class="notes-heading">
+        <div><strong>阅读笔记</strong><small id="annotationCount">0 条文字批注</small></div>
+        <button id="closeNotes" class="plain-icon" title="关闭批注栏">×</button>
+      </div>
+      <section class="paper-note-section">
+        <label for="paperNote">整篇论文笔记</label>
+        <textarea id="paperNote" placeholder="记录论文要点、评价、疑问或后续工作…"></textarea>
+      </section>
+      <div class="annotation-list-heading">文字批注</div>
+      <div id="annotationList" class="annotation-list"></div>
+    </aside>
+
+    <aside id="aiPanel" class="ai-panel">
+      <div id="aiResizer" class="side-panel-resizer" title="拖动调整 AI 对话宽度"></div>
+      <button id="aiRail" class="ai-rail" title="展开 AI 对话"><span>AI</span><span>‹</span></button>
+      <div class="ai-panel-inner">
+        <div class="ai-panel-heading">
+          <div><strong>Codex</strong><small>当前论文目录即工作区</small></div>
+          <button id="collapseAi" class="plain-icon" title="折叠 AI 对话">›</button>
+        </div>
+        <div id="aiChatRoot" class="ai-chat-root"></div>
+      </div>
+    </aside>
+  </main>
+
+  <dialog id="annotationDialog" class="annotation-dialog">
+    <form method="dialog">
+      <div class="dialog-heading">
+        <strong id="dialogTitle">添加文字批注</strong>
+        <button value="cancel" class="plain-icon" aria-label="关闭">×</button>
+      </div>
+      <blockquote id="selectedQuote"></blockquote>
+      <textarea id="annotationText" placeholder="写下对这段内容的理解、疑问或评价…" required></textarea>
+      <div class="dialog-actions">
+        <button value="cancel" class="button secondary">取消</button>
+        <button id="confirmAnnotation" value="default" class="button accent">保存批注</button>
+      </div>
+    </form>
+  </dialog>
+
+  <dialog id="metadataDialog" class="metadata-dialog">
+    <form method="dialog">
+      <div class="dialog-heading">
+        <strong>文章标题与标签</strong>
+        <button value="cancel" class="plain-icon" aria-label="关闭">×</button>
+      </div>
+      <label for="customTitle">自定义标题</label>
+      <input id="customTitle" type="text" maxlength="240" placeholder="不填写时沿用文件名">
+      <label for="tagInput">文章标签</label>
+      <div id="tagChips" class="tag-chips"></div>
+      <div class="available-tags-heading">已有标签（点击添加）</div>
+      <div id="availableTags" class="available-tags"></div>
+      <div class="tag-entry">
+        <input id="tagInput" type="text" maxlength="60" placeholder="输入标签后按回车或点击添加">
+        <button id="addTag" type="button" class="button secondary">添加</button>
+      </div>
+      <small>一篇文章可以添加多个标签；标签只用于阅读器分类，不会移动论文文件。</small>
+      <div class="dialog-actions">
+        <button value="cancel" class="button secondary">取消</button>
+        <button id="saveMetadata" value="default" class="button accent">保存</button>
+      </div>
+    </form>
+  </dialog>
+
+  <dialog id="tagManagerDialog" class="tag-manager-dialog">
+    <form method="dialog">
+      <div class="dialog-heading">
+        <div><strong>标签管理</strong><small id="tagManagerSummary"></small></div>
+        <button value="cancel" class="plain-icon" aria-label="关闭">×</button>
+      </div>
+      <div class="search-box tag-manager-search"><span>⌕</span><input id="tagManagerSearch" type="search" placeholder="搜索标签"></div>
+      <div id="tagManagerList" class="tag-manager-list"></div>
+      <div class="dialog-actions"><button value="cancel" class="button secondary">完成</button></div>
+    </form>
+  </dialog>
+
+  <dialog id="tagActionDialog" class="tag-action-dialog">
+    <form method="dialog">
+      <div class="dialog-heading">
+        <strong id="tagActionTitle">重命名标签</strong>
+        <button value="cancel" class="plain-icon" aria-label="关闭">×</button>
+      </div>
+      <p id="tagActionDescription" class="tag-action-description"></p>
+      <label for="tagActionInput">目标标签</label>
+      <input id="tagActionInput" type="text" maxlength="60" list="tagSuggestions" autocomplete="off">
+      <datalist id="tagSuggestions"></datalist>
+      <div class="dialog-actions">
+        <button value="cancel" class="button secondary">取消</button>
+        <button id="confirmTagAction" value="default" class="button accent">确认</button>
+      </div>
+    </form>
+  </dialog>
+
+  <div id="toast" class="toast" role="status"></div>
+
+  <script src="/assets/marked.js"></script>
+  <script src="/assets/purify.js"></script>
+  <script src="/assets/mathjax.js"></script>
+  <script src="/assets/zcs/protocol.js"></script>
+  <script src="/assets/zcs/ai-client.js"></script>
+  <script src="/assets/zcs/katex.js"></script>
+  <script src="/assets/zcs/markdown.js"></script>
+  <script src="/assets/zcs/sidebar.js"></script>
+  <script src="/assets/zcs/ai-chat.js"></script>
+  <script src="/assets/app.js"></script>
+</body>
+</html>
