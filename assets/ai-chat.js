@@ -19,19 +19,68 @@
     codexHome: "",
   };
   const keyPrefix = "ai-literature-reader.codex.";
-  const getPreference = key => {
-    const raw = localStorage.getItem(keyPrefix + key);
-    if (raw == null) return defaults[key];
-    if (raw === "true" || raw === "false") return raw === "true";
-    return raw;
+  const persistentPreferences = {};
+  const hasOwn = (object, key) => Object.prototype.hasOwnProperty.call(object, key);
+  const parsePreference = value => {
+    if (value === "true" || value === "false") return value === "true";
+    return value;
   };
-  const setPreference = (key, value) => localStorage.setItem(keyPrefix + key, String(value));
+  const getPreference = key => {
+    const raw = hasOwn(persistentPreferences, key)
+      ? persistentPreferences[key]
+      : localStorage.getItem(keyPrefix + key);
+    if (raw == null) return defaults[key];
+    return parsePreference(raw);
+  };
+  const setPreference = (key, value) => {
+    const text = String(value);
+    persistentPreferences[key] = text;
+    localStorage.setItem(keyPrefix + key, text);
+    void fetch("/api/ai/preferences", {
+      method: "POST",
+      cache: "no-store",
+      keepalive: true,
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ preferences: { [key]: text } }),
+    }).catch(error => log("保存 Codex 对话设置失败", error));
+  };
   const log = (message, error) => console.warn(message, error || "");
+
+  async function loadPersistentPreferences() {
+    try {
+      const response = await fetch("/api/ai/preferences", { cache: "no-store" });
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.error || "读取 AI 设置失败");
+      Object.assign(persistentPreferences, data.preferences || {});
+      const migration = {};
+      for (const key of Object.keys(defaults)) {
+        const local = localStorage.getItem(keyPrefix + key);
+        if (!hasOwn(persistentPreferences, key) && local != null) {
+          persistentPreferences[key] = local;
+          migration[key] = local;
+        }
+        else if (hasOwn(persistentPreferences, key)) {
+          localStorage.setItem(keyPrefix + key, persistentPreferences[key]);
+        }
+      }
+      if (Object.keys(migration).length) {
+        await fetch("/api/ai/preferences", {
+          method: "POST",
+          cache: "no-store",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ preferences: migration }),
+        });
+      }
+    }
+    catch (error) {
+      log("读取持久化 Codex 对话设置失败，将使用当前窗口设置", error);
+    }
+  }
 
   const { BrowserCodexClient } = global.ZoteroCodexModules.CodexClient;
   const { SidebarManager, SidebarView } = global.ZoteroCodexModules.Sidebar;
-  const client = new BrowserCodexClient({ getPreference, log });
-  const manager = new SidebarManager({ client, getPreference, setPreference, log });
+  let client = null;
+  let manager = null;
   let view = null;
   let currentPaper = null;
 
@@ -52,6 +101,9 @@
 
   async function mount(root) {
     if (view) return view;
+    await loadPersistentPreferences();
+    client = new BrowserCodexClient({ getPreference, log });
+    manager = new SidebarManager({ client, getPreference, setPreference, log });
     view = new SidebarView(manager, { doc: document, body: root, item: { id: 0, key: "none" }, tabType: "reader" });
     manager.views.set(root, view);
     view.refreshContext = async () => {

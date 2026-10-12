@@ -2180,7 +2180,14 @@
           .sort((left, right) => right.timestamp - left.timestamp);
         this.renderThreadPicker();
         this.activePaperKey = paperKey;
-        const boundID = paperKey ? this.manager.getPaperThread(paperKey) : "";
+        let boundID = paperKey ? this.manager.getPaperThread(paperKey) : "";
+        if (!boundID && paperKey && paperCwd) {
+          const recovered = Protocol.filterThreadsForPaper(this.threads, paperCwd)[0];
+          if (recovered?.id) {
+            boundID = recovered.id;
+            this.manager.setPaperThread(paperKey, boundID);
+          }
+        }
         const remembered = paperKey ? "" : String(this.manager.getPreference("lastThreadId") || "");
         const nextID = boundID ||
           (!paperKey && previousID && this.threads.some((thread) => thread.id === previousID) && previousID) ||

@@ -22,6 +22,7 @@ internal static class MinerULibraryReview
     private static string PapersStateDirectory;
     private static string TranslationWorkspaceDirectory;
     private static string LibraryRoot;
+    private static Dictionary<string, string> AiPreferences = new Dictionary<string, string>(StringComparer.Ordinal);
     private static TcpListener Listener;
     private static DateTime LastHeartbeat = DateTime.UtcNow;
     private static DateTime? CloseRequested;
@@ -93,13 +94,22 @@ internal static class MinerULibraryReview
             Settings settings = Json.Deserialize<Settings>(File.ReadAllText(path, Encoding.UTF8));
             if (settings != null && Directory.Exists(settings.libraryRoot))
                 LibraryRoot = Path.GetFullPath(settings.libraryRoot);
+            if (settings != null && settings.aiPreferences != null)
+                AiPreferences = new Dictionary<string, string>(settings.aiPreferences, StringComparer.Ordinal);
         }
         catch { }
     }
 
     private static void SaveSettings()
     {
-        AtomicWrite(Path.Combine(StateDirectory, "settings.json"), Json.Serialize(new Settings { libraryRoot = LibraryRoot }));
+        lock (StateLock)
+        {
+            AtomicWrite(Path.Combine(StateDirectory, "settings.json"), Json.Serialize(new Settings
+            {
+                libraryRoot = LibraryRoot,
+                aiPreferences = new Dictionary<string, string>(AiPreferences, StringComparer.Ordinal)
+            }));
+        }
     }
 
     private static void ServerLoop()
@@ -172,6 +182,8 @@ internal static class MinerULibraryReview
                 else if (path == "/api/tags/delete" && request.method == "POST") DeleteTag(stream, request.body);
                 else if (path == "/api/tags/update" && request.method == "POST") UpdateTag(stream, request.body);
                 else if (path == "/api/ai/connect") WriteJson(stream, GetCodex().ConnectInfo());
+                else if (path == "/api/ai/preferences" && request.method == "GET") WriteJson(stream, GetAiPreferences());
+                else if (path == "/api/ai/preferences" && request.method == "POST") SaveAiPreferences(stream, request.body);
                 else if (path == "/api/ai/rpc" && request.method == "POST") HandleCodexRpc(stream, request.body);
                 else if (path == "/api/ai/respond" && request.method == "POST") HandleCodexResponse(stream, request.body);
                 else if (path == "/api/ai/events") WriteJson(stream, GetCodex().ReadEvents(ParseLong(query["after"]), 10000));
@@ -623,6 +635,35 @@ internal static class MinerULibraryReview
         return Int64.TryParse(value, out parsed) ? parsed : 0;
     }
 
+    private static object GetAiPreferences()
+    {
+        lock (StateLock)
+            return new { preferences = new Dictionary<string, string>(AiPreferences, StringComparer.Ordinal) };
+    }
+
+    private static void SaveAiPreferences(Stream stream, string body)
+    {
+        AiPreferencesRequest request = Json.Deserialize<AiPreferencesRequest>(body);
+        if (request == null || request.preferences == null)
+            throw new InvalidOperationException("AI 设置内容无效。");
+        string[] allowed = {
+            "includeItemContext", "paperOnlyChats", "paperThreads", "lastThreadId",
+            "model", "reasoningEffort", "approvalPolicy", "approvalsReviewer", "sandbox",
+            "networkAccess", "showWorkProcess", "sidebarHeight", "workingDirectory",
+            "codexPath", "codexHome"
+        };
+        lock (StateLock)
+        {
+            foreach (KeyValuePair<string, string> pair in request.preferences)
+            {
+                if (Array.IndexOf(allowed, pair.Key) < 0) continue;
+                AiPreferences[pair.Key] = pair.Value ?? "";
+            }
+            SaveSettings();
+        }
+        WriteJson(stream, new { saved = true });
+    }
+
     private static CodexBridge GetCodex()
     {
         lock (StateLock)
@@ -791,7 +832,16 @@ internal static class MinerULibraryReview
         public string body;
     }
 
-    private sealed class Settings { public string libraryRoot { get; set; } }
+    private sealed class Settings
+    {
+        public string libraryRoot { get; set; }
+        public Dictionary<string, string> aiPreferences { get; set; }
+    }
+
+    private sealed class AiPreferencesRequest
+    {
+        public Dictionary<string, string> preferences { get; set; }
+    }
 
     private sealed class TreeNode
     {
