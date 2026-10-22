@@ -1,9 +1,9 @@
-<!doctype html>
+﻿<!doctype html>
 <html lang="zh-CN">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1">
-  <title>AI辅助文献阅读器</title>
+  <title>文献伴读</title>
   <link rel="stylesheet" href="/assets/app.css">
   <link rel="stylesheet" href="/assets/zcs/katex.css">
   <link rel="stylesheet" href="/assets/zcs/style.css">
@@ -12,20 +12,44 @@
 <body>
   <header class="app-header">
     <div class="brand">
-      <span class="brand-mark">AI</span>
-      <div><strong>AI辅助文献阅读器</strong><small id="libraryPath">正在读取论文库…</small></div>
+      <span class="brand-mark">文</span>
+      <div><strong>文献伴读</strong><small id="libraryPath">正在读取论文库…</small></div>
+    </div>
+    <div class="header-controls">
+      <button id="toggleExplorer" class="header-panel-toggle" type="button" title="收起论文库" aria-label="收起论文库" aria-pressed="true">目录</button>
+      <div id="headerPaperActions" class="header-paper-actions hidden">
+        <div class="header-group panel-controls" aria-label="阅读区域">
+          <button id="togglePdf" class="header-panel-toggle" type="button" aria-pressed="false">PDF</button>
+          <button id="toggleMarkdown" class="header-panel-toggle" type="button" aria-pressed="true">MD</button>
+          <button id="toggleNotes" class="header-panel-toggle" type="button" aria-pressed="false">批注栏</button>
+          <button id="toggleAi" class="header-panel-toggle" type="button" aria-pressed="true">AI</button>
+        </div>
+        <div class="header-group paper-actions">
+          <button id="sendSelectionToAi" class="button secondary" disabled>发给 AI</button>
+          <button id="translateSelection" class="button translate-button" disabled>AI 翻译</button>
+          <button id="annotateSelection" class="button accent" disabled>批注</button>
+        </div>
+        <div class="header-group paper-actions">
+          <button id="openCitations" class="button secondary" type="button">引用</button>
+          <button id="editMetadata" class="button secondary">标题与标签</button>
+        </div>
+        <span id="saveState" class="save-state">已保存</span>
+      </div>
     </div>
     <div class="header-actions">
+      <button id="importPdfs" class="button secondary" type="button">导入论文 PDF</button>
+      <input id="importPdfFiles" class="hidden" type="file" accept=".pdf,application/pdf" multiple>
       <button id="chooseRoot" class="button secondary">打开文件夹</button>
       <button id="refreshTree" class="button icon-button" title="刷新论文库" aria-label="刷新论文库">↻</button>
     </div>
   </header>
 
-  <main class="app-shell">
-    <aside class="explorer">
+  <main id="appShell" class="app-shell">
+    <aside id="explorerPanel" class="explorer">
+      <button id="explorerRail" class="explorer-rail" type="button" title="展开论文库" aria-label="展开论文库"><span>目录</span><span>›</span></button>
       <div class="explorer-heading">
         <span>论文库</span>
-        <div class="explorer-heading-actions"><button id="manageTags" class="plain-text-button">标签管理</button><span id="paperCount" class="count-badge">0</span></div>
+        <div class="explorer-heading-actions"><button id="showDuplicates" class="plain-text-button hidden">重复 <span id="duplicateCount">0</span></button><button id="manageTags" class="plain-text-button">标签管理</button><span id="paperCount" class="count-badge">0</span><button id="collapseExplorer" class="plain-icon" type="button" title="收起论文库" aria-label="收起论文库">‹</button></div>
       </div>
       <div id="libraryScope" class="library-scope" aria-label="论文范围">
         <button data-scope="all" class="active">全部论文</button>
@@ -38,7 +62,7 @@
       </div>
       <div class="search-box">
         <span>⌕</span>
-        <input id="treeSearch" type="search" placeholder="筛选论文名称">
+        <input id="treeSearch" type="search" placeholder="搜索论文标题或文件名">
       </div>
       <div class="status-filters" id="statusFilters">
         <button data-filter="all" class="active">全部</button>
@@ -55,28 +79,22 @@
       <div id="emptyState" class="empty-state">
         <div class="empty-illustration">⌁</div>
         <h1>选择一篇论文开始阅读</h1>
-        <p>从左侧论文库中选择包含 Markdown 和原始 PDF 的论文。</p>
+        <p>从左侧选择论文，或点击“导入论文 PDF”批量加入文献。</p>
       </div>
 
       <div id="paperView" class="paper-view hidden">
         <div class="paper-toolbar">
-          <div class="paper-identity">
+          <button id="paperLocation" class="paper-identity paper-location" type="button" title="在文件资源管理器中打开所在目录">
             <strong id="paperTitle"></strong>
             <span id="paperMeta"></span>
-          </div>
+          </button>
           <div class="reading-status" aria-label="阅读状态">
             <button data-status="unread">未读</button>
             <button data-status="skimmed">粗读</button>
             <button data-status="deep">精读</button>
           </div>
-          <button id="togglePdf" class="button secondary">展开 PDF</button>
-          <button id="sendSelectionToAi" class="button secondary" disabled>发给 AI</button>
-          <button id="translateSelection" class="button translate-button" disabled>AI 翻译</button>
-          <button id="annotateSelection" class="button accent" disabled>批注</button>
           <button id="favoritePaper" class="button secondary" title="收藏当前论文">☆ 收藏</button>
-          <button id="editMetadata" class="button secondary">标题与标签</button>
-          <button id="toggleNotes" class="button secondary">批注栏</button>
-          <span id="saveState" class="save-state">已保存</span>
+          <button id="manageAttachments" class="button secondary attachment-trigger" type="button">附件</button>
         </div>
 
         <div class="reading-layout pdf-collapsed" id="readingLayout">
@@ -87,24 +105,33 @@
           </section>
           <div id="readerDivider" class="reader-divider" title="拖动调整宽度"></div>
           <section class="markdown-pane" id="markdownPane">
-            <div class="pane-label"><span>渲染 Markdown</span><span>可选择文字添加批注</span></div>
+            <div class="pane-label"><span>渲染 Markdown</span><span>可选择文字添加批注</span><button id="collapseMarkdown" class="plain-icon" title="折叠 Markdown" aria-label="折叠 Markdown">›</button></div>
             <article id="markdownContent" class="markdown-content"><p class="loading-text">正在渲染…</p></article>
+            <button id="markdownRail" class="markdown-rail" title="展开 Markdown" aria-label="展开 Markdown"><span>MD</span><span>‹</span></button>
           </section>
         </div>
       </div>
+
+      <section id="attachmentViewer" class="attachment-viewer hidden">
+        <div class="attachment-viewer-toolbar"><strong id="attachmentViewerTitle"></strong><button id="attachmentOpenFolder" class="button secondary" type="button">打开所在文件夹</button><button id="attachmentFullscreen" class="button secondary hidden" type="button">全屏</button></div>
+        <div id="attachmentVideoList" class="attachment-video-list hidden"></div>
+        <video id="attachmentVideo" class="attachment-video hidden" controls playsinline></video>
+        <iframe id="attachmentPdf" class="attachment-pdf hidden" title="支撑材料 PDF"></iframe>
+      </section>
     </section>
 
-    <aside id="notesPanel" class="notes-panel hidden">
+    <aside id="notesPanel" class="notes-panel collapsed">
       <div id="notesResizer" class="side-panel-resizer" title="拖动调整批注栏宽度"></div>
+      <button id="notesRail" class="notes-rail" type="button" title="展开批注栏" aria-label="展开批注栏"><span>批注</span><span>‹</span></button>
       <div class="notes-heading">
         <div><strong>阅读笔记</strong><small id="annotationCount">0 条文字批注</small></div>
-        <button id="closeNotes" class="plain-icon" title="关闭批注栏">×</button>
+        <button id="closeNotes" class="plain-icon" title="收起批注栏" aria-label="收起批注栏">›</button>
       </div>
       <section class="paper-note-section">
         <label for="paperNote">整篇论文笔记</label>
         <textarea id="paperNote" placeholder="记录论文要点、评价、疑问或后续工作…"></textarea>
       </section>
-      <div class="annotation-list-heading">文字批注</div>
+      <div id="annotationListHeading" class="annotation-list-heading">文字批注</div>
       <div id="annotationList" class="annotation-list"></div>
     </aside>
 
@@ -189,6 +216,20 @@
     </form>
   </dialog>
 
+  <dialog id="attachmentDialog" class="attachment-dialog">
+    <div class="dialog-heading"><strong>支撑材料</strong><button id="closeAttachmentDialog" class="plain-icon" type="button" aria-label="关闭">×</button></div>
+    <p id="attachmentAnchorHint" class="attachment-hint"></p>
+    <div class="attachment-actions"><button id="addAttachmentFile" class="button secondary" type="button">添加文件</button><button id="linkParsedPaper" class="button secondary" type="button">关联已解析材料</button></div>
+    <div id="attachmentPaperPicker" class="attachment-paper-picker hidden"><select id="attachmentPaperChoice" aria-label="选择已解析材料"></select><button id="confirmParsedLink" class="button accent" type="button">关联</button></div>
+    <div id="attachmentList" class="attachment-list"></div>
+  </dialog>
+
+  <dialog id="duplicateDialog" class="duplicate-dialog">
+    <div class="dialog-heading"><strong>重复论文</strong><button id="closeDuplicateDialog" class="plain-icon" type="button" aria-label="关闭">×</button></div>
+    <p class="attachment-hint">仅把 PDF 内容完全相同的论文列在这里。删除前会再次核对文件，删除后不会进入回收站。</p>
+    <div id="duplicateList" class="duplicate-list"></div>
+  </dialog>
+
   <div id="toast" class="toast" role="status"></div>
 
   <script src="/assets/marked.js"></script>
@@ -200,6 +241,7 @@
   <script src="/assets/zcs/markdown.js"></script>
   <script src="/assets/zcs/sidebar.js"></script>
   <script src="/assets/zcs/ai-chat.js"></script>
+  <script src="/assets/citations.js"></script>
   <script src="/assets/app.js"></script>
 </body>
 </html>

@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
@@ -13,7 +13,7 @@ using System.Web;
 using System.Web.Script.Serialization;
 using System.Windows.Forms;
 
-internal static class MinerULibraryReview
+internal static partial class MinerULibraryReview
 {
     private static readonly object StateLock = new object();
     private static readonly JavaScriptSerializer Json = new JavaScriptSerializer { MaxJsonLength = Int32.MaxValue };
@@ -42,6 +42,8 @@ internal static class MinerULibraryReview
             Directory.CreateDirectory(PapersStateDirectory);
             Directory.CreateDirectory(TranslationWorkspaceDirectory);
             LoadSettings();
+            WatchLibrary();
+            WatchAttachmentRecords();
 
             Listener = new TcpListener(IPAddress.Loopback, 0);
             Listener.Start();
@@ -65,12 +67,15 @@ internal static class MinerULibraryReview
         }
         catch (Exception ex)
         {
-            MessageBox.Show(ex.Message, "AI辅助文献阅读器", MessageBoxButtons.OK, MessageBoxIcon.Error);
+            try { Directory.CreateDirectory(StateDirectory); File.AppendAllText(Path.Combine(StateDirectory, "error.log"), DateTime.UtcNow.ToString("o") + " " + ex + Environment.NewLine); } catch { }
+            MessageBox.Show(ex.Message, "文献伴读", MessageBoxButtons.OK, MessageBoxIcon.Error);
         }
         finally
         {
             Stopping = true;
             if (Codex != null) try { Codex.Dispose(); } catch { }
+            if (LibraryWatcher != null) try { LibraryWatcher.Dispose(); } catch { }
+            if (AttachmentRecordsWatcher != null) try { AttachmentRecordsWatcher.Dispose(); } catch { }
             if (Listener != null) try { Listener.Stop(); } catch { }
         }
     }
@@ -140,6 +145,8 @@ internal static class MinerULibraryReview
     {
         Stopping = true;
         if (Codex != null) try { Codex.Dispose(); } catch { }
+        if (LibraryWatcher != null) try { LibraryWatcher.Dispose(); } catch { }
+        if (AttachmentRecordsWatcher != null) try { AttachmentRecordsWatcher.Dispose(); } catch { }
         try { Listener.Stop(); } catch { }
     }
 
@@ -174,10 +181,33 @@ internal static class MinerULibraryReview
                 else if (path == "/assets/zcs/ai-chat.js") WriteResource(stream, "AiChatJs", "application/javascript; charset=utf-8");
                 else if (path.StartsWith("/assets/zcs/fonts/", StringComparison.Ordinal))
                     WriteResource(stream, "ZcsFont_" + Path.GetFileName(path), "font/woff2");
+                else if (path == "/assets/citations.js") WriteResource(stream, "CitationsJs", "application/javascript; charset=utf-8");
                 else if (path == "/api/settings") WriteJson(stream, new { libraryRoot = LibraryRoot });
                 else if (path == "/api/tree") WriteJson(stream, BuildTreeResponse());
+                else if (path == "/api/attachments/add" && request.method == "POST") AddAttachment(stream, request.body);
+                else if (path == "/api/attachments/link" && request.method == "POST") LinkParsedPaper(stream, request.body);
+                else if (path == "/api/attachments/remove" && request.method == "POST") RemoveAttachment(stream, request.body);
+                else if (path == "/api/attachments/open-folder" && request.method == "POST") OpenAttachmentFolder(stream, request.body);
+                else if (path == "/api/paper/open-folder" && request.method == "POST") OpenPaperFolder(stream, request.body);
+                else if (path == "/api/attachments/zip-videos") WriteJson(stream, ListZipVideos(query["id"]));
+                else if (path == "/api/attachments/cache/clear" && request.method == "POST") ClearVideoCache(stream);
+                else if (path == "/api/duplicates/delete" && request.method == "POST") DeleteDuplicate(stream, request.body);
+                else if (path == "/api/duplicates/transfer-attachments" && request.method == "POST") TransferDuplicateAttachments(stream, request.body);
+                else if (path == "/api/library-revision") WriteJson(stream, new { revision = LibraryRevision });
                 else if (path == "/api/paper") WriteJson(stream, GetPaper(query["path"]));
                 else if (path == "/api/select-root") SelectRoot(stream);
+                else if (path == "/api/papers/import-pdfs/start" && request.method == "POST") StartPdfImport(stream, request.body);
+                else if (path == "/api/papers/import-pdfs/chunk" && request.method == "POST") AppendPdfImport(stream, query["id"], query["offset"], request.bodyBytes);
+                else if (path == "/api/papers/import-pdfs/complete" && request.method == "POST") CompletePdfImport(stream, request.body);
+                else if (path == "/api/papers/import-pdfs/cancel" && request.method == "POST") CancelPdfImport(stream, request.body);
+                else if (path == "/api/citation" && request.method == "GET") WriteJson(stream, ReadCitation(ResolvePaper(query["paper"])));
+                else if (path == "/api/citation" && request.method == "POST") SaveCitation(stream, request.body);
+                else if (path == "/api/citation/undo" && request.method == "POST") WriteJson(stream, UndoCitationSave(Json.Deserialize<Dictionary<string, string>>(request.body)["paper"]));
+                else if (path == "/api/citations") WriteJson(stream, ListCitationExportData());
+                else if (path == "/api/citation/recognize" && request.method == "POST") WriteJson(stream, RecognizeCitation(Json.Deserialize<Dictionary<string, string>>(request.body)["paper"]));
+                else if (path == "/api/citation/search" && request.method == "POST") WriteJson(stream, SearchCitation(request.body));
+                else if (path == "/api/citation/scan" && request.method == "GET") WriteJson(stream, ScanCitation(query["paper"]));
+                else if (path == "/api/citation/lookup" && request.method == "POST") WriteJson(stream, LookupCitation(Json.Deserialize<Dictionary<string, string>>(request.body)["doi"]));
                 else if (path == "/api/save" && request.method == "POST") SavePaper(stream, request.body);
                 else if (path == "/api/tags/delete" && request.method == "POST") DeleteTag(stream, request.body);
                 else if (path == "/api/tags/update" && request.method == "POST") UpdateTag(stream, request.body);
@@ -191,6 +221,7 @@ internal static class MinerULibraryReview
                 else if (path == "/content/markdown") ServeMarkdown(stream, query["paper"]);
                 else if (path == "/content/pdf") ServePdf(stream, query["paper"], request.headers);
                 else if (path == "/content/asset") ServeAsset(stream, query["paper"], query["file"]);
+                else if (path == "/content/attachment") ServeAttachment(stream, query["id"], query["entry"], request.headers);
                 else if (path == "/heartbeat")
                 {
                     LastHeartbeat = DateTime.UtcNow;
@@ -252,6 +283,8 @@ internal static class MinerULibraryReview
             if (read <= 0) break;
             offset += read;
         }
+        if (offset != body.Length) throw new InvalidDataException("请求内容传输不完整。");
+        request.bodyBytes = body;
         request.body = Encoding.UTF8.GetString(body, 0, offset);
         return request;
     }
@@ -261,7 +294,11 @@ internal static class MinerULibraryReview
         string root;
         lock (StateLock) root = LibraryRoot;
         TreeNode node = BuildTreeNode(root, root, 0);
-        return new { libraryRoot = root, tree = node, scannedAt = DateTime.UtcNow.ToString("o") };
+        var availablePapers = CollectPapers(node);
+        var links = LoadAttachmentLinks();
+        var duplicates = FindDuplicates(availablePapers);
+        HideLinkedPapers(node, links);
+        return new { libraryRoot = root, tree = node, availablePapers = availablePapers, attachments = links, duplicates = duplicates, scannedAt = DateTime.UtcNow.ToString("o"), revision = LibraryRevision };
     }
 
     private static TreeNode BuildTreeNode(string directory, string root, int depth)
@@ -270,13 +307,16 @@ internal static class MinerULibraryReview
         node.name = String.Equals(directory, root, StringComparison.OrdinalIgnoreCase)
             ? new DirectoryInfo(root).Name : Path.GetFileName(directory);
         node.path = String.Equals(directory, root, StringComparison.OrdinalIgnoreCase) ? "" : MakeRelative(root, directory);
-        node.paper = File.Exists(Path.Combine(directory, "markdown.md")) && FindPdf(directory) != null;
+        node.paper = !String.Equals(directory, root, StringComparison.OrdinalIgnoreCase) && FindPdf(directory) != null;
+        node.hasMarkdown = node.paper && File.Exists(Path.Combine(directory, "markdown.md"));
         node.children = new List<TreeNode>();
         if (node.paper)
         {
             ReviewRecord review = LoadReview(directory);
             node.status = review.status ?? "unread";
             node.title = review.title ?? "";
+            node.parsedTitle = node.hasMarkdown
+                ? ReadParsedTitle(Path.Combine(directory, "markdown.md")) : "";
             node.tags = review.tags ?? new List<string>();
             node.favorite = review.favorite;
             node.lastOpenedAt = review.lastOpenedAt ?? "";
@@ -289,6 +329,8 @@ internal static class MinerULibraryReview
             Array.Sort(directories, StringComparer.CurrentCultureIgnoreCase);
             foreach (string child in directories)
             {
+                if (String.Equals(child, Path.Combine(AppDirectory, "attachments"), StringComparison.OrdinalIgnoreCase) ||
+                    String.Equals(child, Path.Combine(AppDirectory, "state"), StringComparison.OrdinalIgnoreCase)) continue;
                 FileAttributes attributes;
                 try { attributes = File.GetAttributes(child); } catch { continue; }
                 string name = Path.GetFileName(child);
@@ -348,6 +390,7 @@ internal static class MinerULibraryReview
             {
                 LibraryRoot = Path.GetFullPath(selected);
                 SaveSettings();
+                WatchLibrary();
             }
         }
         WriteJson(stream, new { selected = !String.IsNullOrEmpty(selected), libraryRoot = LibraryRoot });
@@ -357,8 +400,8 @@ internal static class MinerULibraryReview
     {
         string directory = ResolvePaper(relativePath);
         string pdf = FindPdf(directory);
-        if (!File.Exists(Path.Combine(directory, "markdown.md")) || pdf == null)
-            throw new FileNotFoundException("该目录不是完整的 MinerU 论文结果。", directory);
+        if (pdf == null) throw new FileNotFoundException("该目录没有可阅读的 PDF。", directory);
+        bool hasMarkdown = File.Exists(Path.Combine(directory, "markdown.md"));
         ReviewRecord review = LoadReview(directory);
         review.lastOpenedAt = DateTime.UtcNow.ToString("o");
         SaveReview(directory, review);
@@ -369,7 +412,8 @@ internal static class MinerULibraryReview
             pdfName = Path.GetFileName(pdf),
             workingDirectory = directory,
             pdfPath = pdf,
-            markdownPath = Path.Combine(directory, "markdown.md"),
+            hasMarkdown = hasMarkdown,
+            markdownPath = hasMarkdown ? Path.Combine(directory, "markdown.md") : null,
             itemKey = ReviewKey(directory),
             attachmentID = StablePositiveInt(directory),
             review = review
@@ -427,7 +471,7 @@ internal static class MinerULibraryReview
     private static int DeleteTagFromDirectory(string directory, string tag, int depth)
     {
         if (depth > 12) return 0;
-        if (File.Exists(Path.Combine(directory, "markdown.md")) && FindPdf(directory) != null)
+        if (FindPdf(directory) != null)
         {
             ReviewRecord review = LoadReview(directory);
             int before = review.tags == null ? 0 : review.tags.Count;
@@ -459,7 +503,7 @@ internal static class MinerULibraryReview
     private static int UpdateTagInDirectory(string directory, string source, string target, int depth)
     {
         if (depth > 12) return 0;
-        if (File.Exists(Path.Combine(directory, "markdown.md")) && FindPdf(directory) != null)
+        if (FindPdf(directory) != null)
         {
             ReviewRecord review = LoadReview(directory);
             bool changed = false;
@@ -571,13 +615,27 @@ internal static class MinerULibraryReview
     private static ReviewRecord LoadReview(string paperDirectory)
     {
         string path = ReviewPath(paperDirectory);
-        if (File.Exists(path))
+        string legacyPath = Path.Combine(PapersStateDirectory, ReviewKey(paperDirectory) + ".json");
+        foreach (string candidate in new[] { path, legacyPath })
         {
+            if (!File.Exists(candidate)) continue;
             try
             {
-                ReviewRecord saved = Json.Deserialize<ReviewRecord>(File.ReadAllText(path, Encoding.UTF8));
+                string content = File.ReadAllText(candidate, Encoding.UTF8);
+                ReviewRecord saved = Json.Deserialize<ReviewRecord>(content);
                 if (saved != null)
                 {
+                    if (candidate == legacyPath)
+                    {
+                        // Keep the old file as a backup while migrating to a key shared by both computers.
+                        try
+                        {
+                            lock (StateLock)
+                                if (!File.Exists(path)) AtomicWrite(path, content);
+                        }
+                        catch (IOException) { }
+                        catch (UnauthorizedAccessException) { }
+                    }
                     saved.status = NormalizeStatus(saved.status);
                     if (saved.annotations == null) saved.annotations = new List<Annotation>();
                     if (saved.title == null) saved.title = "";
@@ -609,9 +667,20 @@ internal static class MinerULibraryReview
 
     private static string ReviewPath(string paperDirectory)
     {
-        return Path.Combine(PapersStateDirectory, ReviewKey(paperDirectory) + ".json");
+        string root;
+        lock (StateLock) root = LibraryRoot;
+        string relative = MakeRelative(root, Path.GetFullPath(paperDirectory)).Replace('\\', '/').Trim('/');
+        if (relative == ".." || relative.StartsWith("../", StringComparison.Ordinal))
+            throw new UnauthorizedAccessException("论文目录不在当前论文库中。");
+        string normalized = (relative.Length == 0 ? "." : relative).ToUpperInvariant();
+        byte[] hash;
+        using (SHA256 sha = SHA256.Create()) hash = sha.ComputeHash(Encoding.UTF8.GetBytes("paper-v2\n" + normalized));
+        StringBuilder name = new StringBuilder("v2-");
+        for (int i = 0; i < hash.Length; i++) name.Append(hash[i].ToString("x2"));
+        return Path.Combine(PapersStateDirectory, name + ".json");
     }
 
+    // The absolute-path key remains in use for local Codex conversation bindings.
     private static string ReviewKey(string paperDirectory)
     {
         string normalized = Path.GetFullPath(paperDirectory).TrimEnd(Path.DirectorySeparatorChar).ToUpperInvariant();
@@ -800,7 +869,7 @@ internal static class MinerULibraryReview
         headers.Append("Content-Type: ").Append(contentType).Append("\r\n");
         headers.Append("Cache-Control: no-store\r\n");
         headers.Append("X-Content-Type-Options: nosniff\r\n");
-        headers.Append("Content-Security-Policy: default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; frame-src 'self'; object-src 'self'\r\n");
+        headers.Append("Content-Security-Policy: default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self' data: blob:; worker-src 'self'; frame-src 'self'; object-src 'self'\r\n");
         if (extra != null) foreach (KeyValuePair<string, string> pair in extra) headers.Append(pair.Key).Append(": ").Append(pair.Value).Append("\r\n");
         headers.Append("Connection: close\r\n\r\n");
         byte[] bytes = Encoding.ASCII.GetBytes(headers.ToString());
@@ -817,6 +886,9 @@ internal static class MinerULibraryReview
             case ".webp": return "image/webp";
             case ".svg": return "image/svg+xml";
             case ".pdf": return "application/pdf";
+            case ".mp4": case ".m4v": return "video/mp4";
+            case ".webm": return "video/webm";
+            case ".ogg": case ".ogv": return "video/ogg";
             case ".json": return "application/json; charset=utf-8";
             case ".md": return "text/markdown; charset=utf-8";
             case ".txt": return "text/plain; charset=utf-8";
@@ -830,6 +902,7 @@ internal static class MinerULibraryReview
         public string target;
         public Dictionary<string, string> headers;
         public string body;
+        public byte[] bodyBytes;
     }
 
     private sealed class Settings
@@ -848,8 +921,10 @@ internal static class MinerULibraryReview
         public string name { get; set; }
         public string path { get; set; }
         public bool paper { get; set; }
+        public bool hasMarkdown { get; set; }
         public string status { get; set; }
         public string title { get; set; }
+        public string parsedTitle { get; set; }
         public List<string> tags { get; set; }
         public bool favorite { get; set; }
         public string lastOpenedAt { get; set; }
@@ -881,6 +956,7 @@ internal static class MinerULibraryReview
         public double markdownScroll { get; set; }
         public double pdfWidth { get; set; }
         public bool? pdfCollapsed { get; set; }
+        public bool? markdownCollapsed { get; set; }
         public string updatedAt { get; set; }
         public List<Annotation> annotations { get; set; }
     }
@@ -976,7 +1052,7 @@ internal static class MinerULibraryReview
             }
             object initialized = RequestCore("initialize", new Dictionary<string, object>
             {
-                { "clientInfo", new Dictionary<string, object> { { "name", "ai-literature-reader" }, { "title", "AI辅助文献阅读器" }, { "version", "1.0.0" } } },
+                { "clientInfo", new Dictionary<string, object> { { "name", "ai-literature-reader" }, { "title", "文献伴读" }, { "version", "1.0.0" } } },
                 { "capabilities", new Dictionary<string, object> { { "experimentalApi", true } } }
             }, 30000);
             Send(new Dictionary<string, object> { { "method", "initialized" }, { "params", new Dictionary<string, object>() } });
@@ -1001,6 +1077,7 @@ internal static class MinerULibraryReview
             info.StandardOutputEncoding = new UTF8Encoding(false);
             info.StandardErrorEncoding = new UTF8Encoding(false);
             info.WorkingDirectory = AppDirectory;
+            ApplySystemProxy(info);
             process = new Process();
             process.StartInfo = info;
             process.EnableRaisingEvents = true;
@@ -1014,6 +1091,26 @@ internal static class MinerULibraryReview
             if (!process.Start()) throw new InvalidOperationException("无法启动 Codex App Server。");
             process.BeginOutputReadLine();
             process.BeginErrorReadLine();
+        }
+
+        private static void ApplySystemProxy(ProcessStartInfo info)
+        {
+            try
+            {
+                IWebProxy systemProxy = WebRequest.GetSystemWebProxy();
+                SetProxyEnvironment(info, systemProxy, "HTTPS_PROXY", "https://api.openai.com/");
+                SetProxyEnvironment(info, systemProxy, "HTTP_PROXY", "http://example.com/");
+            }
+            catch { /* Keep the inherited environment if system proxy discovery fails. */ }
+        }
+
+        private static void SetProxyEnvironment(ProcessStartInfo info, IWebProxy systemProxy, string name, string destination)
+        {
+            if (!String.IsNullOrWhiteSpace(info.EnvironmentVariables[name])) return;
+            Uri target = new Uri(destination);
+            Uri proxy = systemProxy.GetProxy(target);
+            if (proxy != null && proxy.IsAbsoluteUri && !proxy.Equals(target))
+                info.EnvironmentVariables[name] = proxy.AbsoluteUri;
         }
 
         private object RequestCore(string method, object parameters, int timeout)

@@ -2586,8 +2586,10 @@
           createL10n(this.doc, "p", "zcs-empty-copy", "zotero-codex-start-reading-copy", "Ask about this paper, explore a method, or compare ideas."));
         const suggestions = create(this.doc, "div", "zcs-suggestions");
         for (const [id, label, promptID, prompt] of [
-          ["zotero-codex-suggest-summary", "解读这篇论文", "zotero-codex-prompt-summary", "请用中文解释这篇论文的研究动机、方法和主要结论。"],
-          ["zotero-codex-suggest-method", "逐步讲解研究方法", "zotero-codex-prompt-method", "请用中文逐步讲解这篇论文的方法，并给出一个具体例子。"],
+          ["zotero-codex-suggest-summary", "是否值得精读", "zotero-codex-prompt-summary", "请帮助我初读这篇论文：概括研究问题、主要工作、核心创新、关键结果和结论；指出最重要的证据与明显局限。最后给出‘值得精读／选择性阅读／暂可跳过’的建议和理由。如果能从论文确认发表期刊或会议及发表状态，可作为辅助依据；不能确认就明确说明。请标出判断所依据的章节或图表，避免只复述摘要。"],
+          ["zotero-codex-suggest-novelty", "创新点是否扎实", "zotero-codex-prompt-novelty", "这篇论文相对已有工作的具体新意是什么？区分真正的方法或发现、已有方法的组合，以及应用场景变化。分别说明作者的主张和论文实际提供的证据；无法从文中确认的比较不要猜测。"],
+          ["zotero-codex-suggest-evidence", "结果是否可信", "zotero-codex-prompt-evidence", "从审稿人的角度检查这篇论文的实验：基线、消融、评价指标、样本或任务覆盖是否足以支撑主要结论？列出最有说服力的结果，以及最值得警惕的两三个缺口，并指出对应位置。"],
+          ["zotero-codex-suggest-method", "逐步讲解方法", "zotero-codex-prompt-method", "请用中文逐步讲解这篇论文的方法：先说明输入、输出和整体流程，再解释关键步骤、公式及其作用，最后给出一个具体例子。对论文没有交代清楚的细节请明确指出，不要自行补全。"],
         ]) {
           const button = createL10n(this.doc, "button", "zcs-suggestion", id, label);
           button.type = "button";

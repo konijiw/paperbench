@@ -1,3 +1,5 @@
+﻿param([string]$OutputPath)
+
 $ErrorActionPreference = 'Stop'
 
 $projectDirectory = Split-Path -Parent $MyInvocation.MyCommand.Path
@@ -10,7 +12,7 @@ $compiler = $compilerCandidates | Where-Object { Test-Path -LiteralPath $_ } | S
 if (-not $compiler) { throw '未找到 .NET Framework C# 编译器。' }
 
 $assets = Join-Path $projectDirectory 'assets'
-$output = Join-Path $appDirectory 'AI辅助文献阅读器.exe'
+$output = if ($OutputPath) { $OutputPath } else { Join-Path $appDirectory '文献伴读.exe' }
 $source = Join-Path $projectDirectory 'MinerULibraryReview.cs'
 
 $arguments = @(
@@ -21,13 +23,18 @@ $arguments = @(
     "/out:$output",
     '/reference:System.dll',
     '/reference:System.Core.dll',
+    '/reference:System.Xml.dll',
+    '/reference:System.Xml.Linq.dll',
     '/reference:System.Web.dll',
     '/reference:System.Web.Extensions.dll',
     '/reference:System.Drawing.dll',
     '/reference:System.Windows.Forms.dll',
+    '/reference:System.IO.Compression.dll',
+    '/reference:System.IO.Compression.FileSystem.dll',
     "/resource:$(Join-Path $assets 'app.html'),AppHtml",
     "/resource:$(Join-Path $assets 'app.css'),AppCss",
     "/resource:$(Join-Path $assets 'app.js'),AppJs",
+    "/resource:$(Join-Path $assets 'citations.js'),CitationsJs",
     "/resource:$(Join-Path $assets 'marked.umd.js'),MarkedJs",
     "/resource:$(Join-Path $assets 'purify.min.js'),PurifyJs",
     "/resource:$(Join-Path $assets 'mathjax-config.js'),MathJaxConfigJs",
@@ -40,7 +47,11 @@ $arguments = @(
     "/resource:$(Join-Path $assets 'codex-sidebar\katex.min.css'),ZcsKatexCss",
     "/resource:$(Join-Path $assets 'ai-client.js'),AiClientJs",
     "/resource:$(Join-Path $assets 'ai-chat.js'),AiChatJs",
-    $source
+    $source,
+    (Join-Path $projectDirectory 'ReaderFeatures.cs'),
+    (Join-Path $projectDirectory 'Citations.cs'),
+    (Join-Path $projectDirectory 'CitationSearch.cs'),
+    (Join-Path $projectDirectory 'CitationRecognition.cs')
 )
 
 $fontDirectory = Join-Path $assets 'codex-sidebar\fonts'

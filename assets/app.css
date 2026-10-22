@@ -1,4 +1,4 @@
-:root{--bg:#eef1f5;--surface:#fff;--surface-2:#f7f8fa;--line:#dce1e8;--line-dark:#c9d0da;--text:#202631;--muted:#687386;--accent:#e85f2a;--accent-soft:#fff1eb;--blue:#3c6ed4;--green:#23845b;--yellow:#b87800;--shadow:0 10px 30px rgba(27,37,51,.12);font-family:"Segoe UI","Microsoft YaHei",sans-serif;color:var(--text);background:var(--bg)}
+﻿:root{--bg:#eef1f5;--surface:#fff;--surface-2:#f7f8fa;--line:#dce1e8;--line-dark:#c9d0da;--text:#202631;--muted:#687386;--accent:#e85f2a;--accent-soft:#fff1eb;--blue:#3c6ed4;--green:#23845b;--yellow:#b87800;--shadow:0 10px 30px rgba(27,37,51,.12);font-family:"Segoe UI","Microsoft YaHei",sans-serif;color:var(--text);background:var(--bg)}
 *{box-sizing:border-box}html,body{height:100%;margin:0;overflow:hidden}button,input,textarea{font:inherit}.hidden{display:none!important}button{cursor:pointer}
 .app-header{height:58px;display:flex;align-items:center;justify-content:space-between;padding:0 16px;background:#17202c;color:#fff;border-bottom:1px solid #0d141d}.brand{display:flex;align-items:center;gap:11px;min-width:0}.brand-mark{width:32px;height:32px;border-radius:9px;display:grid;place-items:center;background:linear-gradient(135deg,#ff8150,#e24e1f);font-weight:800;box-shadow:0 4px 12px rgba(232,95,42,.35)}.brand>div{display:flex;flex-direction:column;min-width:0}.brand strong{font-size:14px;line-height:18px}.brand small{font-size:11px;color:#abb7c6;max-width:60vw;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.header-actions{display:flex;gap:8px}
 .button{border:1px solid transparent;border-radius:7px;padding:7px 12px;font-size:13px;line-height:18px;transition:.16s}.button.secondary{background:#fff;color:#303a48;border-color:#d1d7df}.app-header .button.secondary{background:#263242;color:#eef3f8;border-color:#3c4a5b}.button.secondary:hover{border-color:#98a4b3;background:#f9fafb}.app-header .button.secondary:hover{background:#334154}.button.accent{background:var(--accent);color:#fff}.button.accent:hover{background:#d94f1c}.button:disabled{opacity:.45;cursor:not-allowed}.icon-button{width:35px;padding:7px 0;font-size:18px}.plain-icon{border:0;background:transparent;font-size:24px;line-height:1;color:var(--muted);padding:2px 5px}.plain-icon:hover{color:var(--text)}
@@ -46,3 +46,107 @@
 .tag-manager-dialog{width:min(620px,calc(100vw - 34px))}.tag-manager-dialog form{min-height:360px}.tag-manager-dialog .dialog-heading>div{display:flex;align-items:baseline;gap:9px}.tag-manager-dialog .dialog-heading small{color:#8590a0;font-weight:400}.tag-manager-search{margin:13px 0 9px}.tag-manager-list{max-height:min(55vh,480px);min-height:230px;overflow:auto;border:1px solid var(--line);border-radius:8px;background:#fafbfc}.tag-manager-row{display:grid;grid-template-columns:12px minmax(110px,1fr) 48px auto auto auto;align-items:center;gap:8px;padding:9px 10px;border-bottom:1px solid #e9edf2}.tag-manager-row:last-child{border-bottom:0}.tag-color-dot{width:10px;height:10px;border-radius:50%;background:hsl(var(--tag-hue) 58% 50%)}.tag-manager-name{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:#344458;font-size:13px}.tag-manager-count{color:#8a95a3;font-size:11px;text-align:right}.tag-manager-action{border:0;background:transparent;color:#4f6f9d;padding:3px 4px;font-size:11px;cursor:pointer}.tag-manager-action:hover{text-decoration:underline}.tag-manager-action.danger{color:#a65b64}.tag-manager-empty{display:flex;align-items:center;justify-content:center;min-height:230px;color:#8a94a2;font-size:12px}.tag-action-dialog{width:min(460px,calc(100vw - 34px))}.tag-action-description{margin:4px 0 15px;color:#637083;font-size:12px;line-height:1.6}.tag-action-dialog input{width:100%;box-sizing:border-box}
 @media(max-width:600px){.tag-manager-row{grid-template-columns:12px minmax(80px,1fr) 42px auto}.tag-manager-row .tag-manager-action{font-size:0}.tag-manager-row .tag-manager-action::after{font-size:11px}.tag-manager-row .tag-manager-action[data-tag-action="rename"]::after{content:"改名"}.tag-manager-row .tag-manager-action[data-tag-action="merge"]::after{content:"合并"}.tag-manager-row .tag-manager-action[data-tag-action="delete"]::after{content:"删除"}}
 .translate-button{border-color:#9cc2b2;background:#eff8f4;color:#27644d}.translate-button:hover:not(:disabled){background:#e2f3eb;border-color:#72aa92}.translate-button:disabled{opacity:.5}.annotation-kind{display:inline-flex;align-items:center;margin-bottom:6px;padding:2px 7px;border-radius:10px;background:#e7f5ef;color:#287259;font-size:10px;font-weight:700;letter-spacing:.04em}
+.reading-layout.markdown-collapsed{grid-template-columns:minmax(0,1fr) 38px}
+.reading-layout.markdown-collapsed .reader-divider,.reading-layout.markdown-collapsed .markdown-pane .pane-label,.reading-layout.markdown-collapsed .markdown-content{display:none}
+.reading-layout.markdown-collapsed .markdown-pane{width:38px}
+.markdown-rail{display:none;width:38px;height:100%;border:0;border-left:1px solid var(--line);background:#f3f5f8;color:#536174;flex-direction:column;align-items:center;justify-content:flex-start;gap:12px;padding:14px 0;font-size:11px;font-weight:700}
+.markdown-rail span:first-child{writing-mode:vertical-rl;letter-spacing:.12em}
+.reading-layout.markdown-collapsed .markdown-rail{display:flex}
+@media(max-width:760px){.reading-layout.markdown-collapsed,.reading-layout.pdf-collapsed{grid-template-rows:minmax(0,1fr)}}
+
+/* Keep reading commands in a stable, full-width header. */
+.app-header{height:66px;gap:14px;padding:0 14px;background:#253448;border-bottom-color:#172538}
+.app-shell{height:calc(100% - 66px)}
+.brand{flex:0 0 220px}.brand small{max-width:180px}
+.header-controls{flex:1;min-width:0;display:flex;align-items:center;gap:8px;overflow-x:auto;overflow-y:hidden;white-space:nowrap;scrollbar-width:thin;scrollbar-color:#63758c transparent}
+.header-paper-actions,.header-group{display:flex;align-items:center;gap:5px;flex:none}
+.header-paper-actions{gap:9px}.header-group{padding-right:9px;border-right:1px solid #526177}
+.header-panel-toggle{height:32px;min-width:42px;padding:0 9px;border:1px solid #50647c;border-radius:7px;background:#344960;color:#dbe4ef;font-size:12px;font-weight:650;white-space:nowrap}
+.header-panel-toggle:hover{background:#415b76}.header-panel-toggle[aria-pressed="true"]{background:#f0f4fa;border-color:#f0f4fa;color:#263e5b}
+.app-header .button{padding:6px 9px;font-size:11px;line-height:18px;white-space:nowrap}
+.app-header .button.secondary{background:#344960;border-color:#50647c;color:#edf3fa}.app-header .button.secondary:hover{background:#425b75;border-color:#8193a8}
+.app-header .button.translate-button{background:#dff3e9;border-color:#9fcab3;color:#23654e}.app-header .button.translate-button:hover:not(:disabled){background:#c8ead9}
+.app-header .button.accent{background:#ea7548}.app-header .button.accent:hover{background:#d85f33}
+.app-header .reading-status{flex:none;background:#1e2c3e;border-color:#4f6076}.app-header .reading-status button{color:#c2cdda}.app-header .reading-status button.active{color:#254f82}
+.app-header .save-state{flex:none;width:40px;color:#c3cfe0}.app-header .save-state.saving{color:#ffd37b}.app-header .save-state.error{color:#ffadad}
+.header-actions{flex:none;gap:6px}.paper-toolbar{height:40px;padding:0 18px;background:#fafbfe}.paper-identity{min-width:0}.paper-identity strong{font-size:12px}
+.explorer-heading .plain-icon{font-size:19px;padding:0 2px}
+.explorer-rail,.notes-rail{display:none;width:38px;height:100%;border:0;background:#f3f5f8;color:#536174;flex-direction:column;align-items:center;justify-content:flex-start;gap:12px;padding:14px 0;font-size:11px;font-weight:700}
+.explorer-rail span:first-child,.notes-rail span:first-child{writing-mode:vertical-rl;letter-spacing:.12em}
+.explorer-rail{border-right:1px solid var(--line)}.notes-rail{border-left:1px solid var(--line)}
+.app-shell.explorer-collapsed{grid-template-columns:38px minmax(0,1fr) auto auto}
+.explorer.collapsed{width:38px}.explorer.collapsed>:not(.explorer-rail){display:none}.explorer.collapsed .explorer-rail{display:flex}
+.notes-panel.collapsed{width:38px;min-width:38px}.notes-panel.collapsed>:not(.notes-rail){display:none}.notes-panel.collapsed .notes-rail{display:flex}
+.markdown-pane .pane-label .plain-icon{font-size:18px;margin-left:8px}
+@media(max-width:1450px){.brand{flex-basis:190px}.brand small{max-width:155px}.header-paper-actions{gap:6px}.header-group{padding-right:6px}.app-header{gap:9px;padding:0 9px}.header-panel-toggle{padding:0 7px}}
+@media(max-width:760px){.brand{flex-basis:44px}.brand>div{display:none}.header-actions #chooseRoot{display:none}.header-actions{gap:2px}}
+
+/* Roomier controls keep their positions when labels switch between open and close. */
+.app-header{height:72px;gap:18px;padding:0 18px}
+.app-shell{height:calc(100% - 72px);transition:grid-template-columns 200ms cubic-bezier(.55,.55,0,1)}
+.brand{flex-basis:230px}
+.header-controls{gap:13px}
+.header-paper-actions{gap:15px}
+.header-group{gap:9px;padding-right:15px}
+.header-panel-toggle{height:38px;padding:0 13px;font-size:13px;transition:background-color 140ms ease,border-color 140ms ease,color 140ms ease}
+#toggleExplorer{width:100px}#togglePdf{width:94px}#toggleMarkdown{width:145px}#toggleNotes{width:120px}#toggleAi{width:92px}
+.app-header .button{height:38px;padding:0 13px;font-size:12px}
+.app-header .reading-status{padding:3px}.app-header .reading-status button{min-width:38px;padding:6px 9px;font-size:12px}
+.app-header .save-state{width:48px;font-size:12px}
+.header-actions{gap:9px}
+.header-panel-toggle:focus-visible,.app-header .button:focus-visible,.app-header .reading-status button:focus-visible{outline:2px solid #b3d3ff;outline-offset:2px}
+.notes-panel,.ai-panel{transition:width 200ms cubic-bezier(.55,.55,0,1),min-width 200ms cubic-bezier(.55,.55,0,1)}
+.reading-layout{transition:grid-template-columns 200ms cubic-bezier(.55,.55,0,1)}
+.side-panel-resizing .notes-panel,.side-panel-resizing .ai-panel,.reader-resizing .reading-layout{transition:none}
+@media(min-width:761px){
+  .reading-layout{grid-template-columns:var(--pdf-width,50%) 6px minmax(0,1fr)}
+  .reading-layout>.pdf-pane{grid-column:1}.reading-layout>.reader-divider{grid-column:2}.reading-layout>.markdown-pane{grid-column:3}
+  .reading-layout.pdf-collapsed{grid-template-columns:38px 0px minmax(0,1fr)}
+  .reading-layout.markdown-collapsed{grid-template-columns:calc(100% - 38px) 0px minmax(0,1fr)}
+  .reading-layout.pdf-collapsed .reader-divider,.reading-layout.markdown-collapsed .reader-divider{display:block;visibility:hidden;pointer-events:none}
+  .reading-layout.pdf-collapsed .pdf-pane,.reading-layout.markdown-collapsed .markdown-pane{width:auto}
+  .reading-layout.pdf-collapsed .pdf-rail,.reading-layout.markdown-collapsed .markdown-rail{width:100%}
+}
+.explorer.collapsed .explorer-rail,.notes-panel.collapsed .notes-rail,.ai-panel.collapsed .ai-rail,.reading-layout.pdf-collapsed .pdf-rail,.reading-layout.markdown-collapsed .markdown-rail{animation:rail-appear 170ms ease-out both}
+.reading-layout:not(.pdf-collapsed) .pdf-pane iframe,.reading-layout:not(.markdown-collapsed) .markdown-content{animation:pane-appear 180ms ease-out both}
+@keyframes rail-appear{from{opacity:0}to{opacity:1}}
+@keyframes pane-appear{from{opacity:.55}to{opacity:1}}
+@media(max-width:1450px){.app-header{gap:10px;padding:0 10px}.brand{flex-basis:190px}.header-controls{gap:9px}.header-paper-actions{gap:9px}.header-group{gap:6px;padding-right:9px}.header-panel-toggle{height:36px;padding:0 9px;font-size:12px}.app-header .button{height:36px;padding:0 10px}.app-header .reading-status button{min-width:34px;padding:5px 6px;font-size:11px}}
+@media(max-width:760px){.brand{flex-basis:44px}}
+@media(prefers-reduced-motion:reduce){.app-shell,.notes-panel,.ai-panel,.reading-layout,.header-panel-toggle{transition:none}.explorer-rail,.notes-rail,.ai-rail,.pdf-rail,.markdown-rail,.pdf-pane iframe,.markdown-content{animation:none!important}}
+.reading-layout.pdf-only{grid-template-columns:minmax(0,1fr) 0 0;grid-template-rows:minmax(0,1fr)}
+.reading-layout.pdf-only .pdf-pane{grid-column:1;width:auto}
+.reading-layout.pdf-only .reader-divider,.reading-layout.pdf-only .markdown-pane{display:none}
+.reading-layout.pdf-only #collapsePdf{display:none}
+.paper-toolbar{height:auto;min-height:44px;flex-wrap:wrap;gap:6px 10px;padding:6px 18px}
+.paper-toolbar .paper-identity{flex:1 1 180px;min-width:110px}
+.paper-toolbar .reading-status{order:0;flex:none}
+.paper-toolbar #favoritePaper,.paper-toolbar #manageAttachments{flex:none;font-size:11px;padding:5px 9px}
+.paper-location{border:0;background:transparent;text-align:left;padding:0;color:inherit;cursor:pointer}.paper-location:hover strong,.paper-location:hover span{text-decoration:underline}.paper-location:focus-visible{outline:2px solid var(--blue);outline-offset:3px;border-radius:3px}.attachment-trigger{font-size:11px;padding:4px 8px}.tree-row.paper.has-attachments>.tree-arrow{cursor:pointer;color:#4c6ca1;font-size:11px}.tree-row.attachment{cursor:pointer;color:#556378}.tree-row.attachment.active{background:#dbe5f6;color:#234f99}.tree-attachment-children{padding-left:13px}.tree-attachment-children.collapsed{display:none}.attachment-dialog,.duplicate-dialog{width:min(640px,calc(100vw - 36px));max-height:80vh;overflow:auto;border:0;border-radius:12px;padding:18px;box-shadow:0 20px 70px rgba(14,22,32,.3)}.attachment-dialog::backdrop,.duplicate-dialog::backdrop{background:rgba(18,27,38,.38)}.attachment-hint{font-size:12px;color:var(--muted);line-height:1.5}.attachment-actions{display:flex;gap:8px;margin:12px 0}.attachment-list,.duplicate-list{max-height:55vh;overflow:auto}.attachment-list-row,.duplicate-group{border:1px solid var(--line);border-radius:8px;padding:10px;margin:8px 0;background:#fafbfc}.attachment-list-row{display:flex;gap:8px;align-items:center}.attachment-list-row span{flex:1;overflow:hidden;text-overflow:ellipsis}.attachment-list-row small{color:var(--muted)}.attachment-list-row button,.duplicate-group button{font-size:11px}.attachment-viewer{height:100%;display:flex;flex-direction:column;background:#111924;color:#fff}.attachment-viewer-toolbar{height:49px;flex:none;display:flex;align-items:center;gap:8px;padding:0 12px;background:#fff;color:var(--text)}.attachment-viewer-toolbar strong{flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:13px}.attachment-video{width:100%;height:calc(100% - 49px);background:#05090e;object-fit:contain}.attachment-pdf{width:100%;height:calc(100% - 49px);border:0}.attachment-video-list{padding:16px;display:flex;flex-wrap:wrap;gap:8px;max-height:140px;overflow:auto}.attachment-video-list button{border:1px solid #50657d;border-radius:7px;background:#23364d;color:#fff;padding:8px 11px}.attachment-video-list button:hover{background:#315171}.attachment-viewer:fullscreen .attachment-video{height:calc(100% - 49px)}.duplicate-paper{display:flex;align-items:center;gap:8px;padding:6px 0;border-top:1px solid var(--line);font-size:12px}.duplicate-paper span{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis}.duplicate-paper small{color:var(--muted)}
+.tree-row.paper.search-result{height:43px}.tree-row.paper.search-result .tree-label{display:flex;flex-direction:column;justify-content:center;gap:2px;min-width:0}.tree-row.paper.search-result .tree-label strong,.tree-row.paper.search-result .tree-label small{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.tree-row.paper.search-result .tree-label strong{font-weight:600}.tree-row.paper.search-result .tree-label small{font-size:10px;color:#8994a2}
+.app-shell.attachment-view-mode .notes-panel,.app-shell.attachment-view-mode .ai-panel{display:none}.attachment-paper-picker{display:flex;gap:8px;margin:8px 0}.attachment-paper-picker select{flex:1;min-width:0;border:1px solid var(--line-dark);border-radius:6px;padding:6px}.attachment-inline{border:0;background:#e6f0ff;color:#2155a1;border-radius:4px;padding:0 3px;margin-left:2px;font-size:11px;vertical-align:super}.attachment-inline:hover{background:#cbdfff}.duplicate-group strong{font-size:12px}.attachment-viewer-toolbar .button{white-space:nowrap}
+
+/* LaTeX citation editor also applies to PDF-only papers. */
+.citation-dialog { position: fixed; inset: auto; margin: 0; z-index: 100; box-sizing: border-box; width: min(820px, calc(100vw - 24px)); max-height: 88vh; overflow-y: auto; padding: 24px; border: 1px solid #cbd5e1; border-radius: 12px; box-shadow: 0 16px 60px rgba(14,22,32,.25); }
+.citation-dialog > .dialog-heading { position: sticky; top: -24px; z-index: 2; margin: -24px -24px 0; padding: 15px 24px; background: white; border-bottom: 1px solid #e2e8f0; cursor: move; touch-action: none; user-select: none; }
+.citation-dialog > .dialog-heading button { cursor: pointer; }
+.citation-drag-hint { margin-left: 12px; font-size: 12px; font-weight: normal; color: #64748b; }
+.citation-dragging > .dialog-heading { cursor: grabbing; }
+.citation-row { display: flex; align-items: center; flex-wrap: wrap; gap: 10px; margin: 12px 0; }
+.citation-row input, .citation-row select { padding: 8px; border: 1px solid #cbd5e1; border-radius: 6px; max-width: 100%; }
+#citeDoi { flex: 1; min-width: 180px; }
+#citeBib { box-sizing: border-box; display: block; width: 100%; min-height: 200px; margin: 10px 0; padding: 12px; font-family: Consolas, monospace; font-size: 13px; resize: vertical; }
+.citation-preview, .citation-status { white-space: pre-wrap; overflow-wrap: anywhere; font-size: 13px; line-height: 1.6; }
+.citation-preview { padding: 12px; background: #f1f5f9; color: #1e293b; border-radius: 6px; }
+.citation-status { color: #334155; margin: 10px 0; }
+.citation-candidate { display: block; max-width: 100%; white-space: normal; overflow-wrap: anywhere; margin: 6px 0; text-align: left; }
+.citation-choice { display: flex; gap: 8px; padding: 8px 0; overflow-wrap: anywhere; }
+.citation-dialog details { margin-top: 20px; border-top: 1px solid #cbd5e1; padding-top: 15px; }
+.citation-dialog summary { cursor: pointer; margin-bottom: 12px; }
+
+#citeTitle { flex: 1; min-width: 220px; }
+.citation-result { border: 1px solid #cbd5e1; border-radius: 8px; padding: 12px; margin: 10px 0; overflow-wrap: anywhere; }
+.citation-result strong { display: block; line-height: 1.5; }
+.citation-result p { font-size: 13px; line-height: 1.6; color: #475569; margin: 8px 0; }
+
+#citeResults { max-height: 340px; overflow-y: auto; }

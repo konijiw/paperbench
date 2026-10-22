@@ -1,5 +1,6 @@
-# Local papers and reading data
+﻿# Local papers and reading data
 state/
+attachments/
 output/
 papers/
 library/
@@ -34,3 +35,6 @@ obj/
 Thumbs.db
 Desktop.ini
 .DS_Store
+
+# Generated citation integration fixtures and binaries
+tests/runtime/
