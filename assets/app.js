@@ -9,7 +9,8 @@
     markdownSource: '',
     selectedText: null,
     selectedImage: null,
-    editingAnnotationId: null,
+    annotationDraft: null,
+    annotationDrafts: Object.create(null),
     dirty: false,
     saveTimer: null,
     loadToken: 0,
@@ -21,15 +22,17 @@
     tagAction: null,
     translating: false,
     translationClient: null,
+    notesExpanded: false,
+    notesLayoutAuto: null,
     attachments: [], availablePapers: [], duplicates: [], expandedPapers: {}, activeAttachment: null, libraryRevision: 0
   };
 
   var els = {};
   ['libraryPath','chooseRoot','importPdfs','importPdfFiles','refreshTree','paperCount','manageTags','showDuplicates','duplicateCount','libraryScope','treeMode','treeSearch','statusFilters','fileTree','headerPaperActions','toggleExplorer','collapseExplorer','explorerRail','appShell','explorerPanel',
    'emptyState','paperView','paperTitle','paperMeta','paperLocation','manageAttachments','pdfName','pdfFrame','markdownPane','attachmentViewer','attachmentViewerTitle','attachmentOpenFolder','attachmentFullscreen','attachmentVideoList','attachmentVideo','attachmentPdf',
-   'markdownContent','readingLayout','readerDivider','togglePdf','collapsePdf','pdfRail','toggleMarkdown','collapseMarkdown','markdownRail','sendSelectionToAi','translateSelection','annotateSelection','toggleNotes','toggleAi','saveState',
-   'notesPanel','closeNotes','notesRail','annotationCount','paperNote','annotationListHeading','annotationList','annotationDialog',
-   'dialogTitle','selectedQuote','annotationText','confirmAnnotation','metadataDialog','editMetadata','customTitle','tagChips','availableTags','tagInput','addTag','saveMetadata','tagManagerDialog','tagManagerSummary','tagManagerSearch','tagManagerList','tagActionDialog','tagActionTitle','tagActionDescription','tagActionInput','tagSuggestions','confirmTagAction','favoritePaper','toast','aiPanel','aiRail','collapseAi','aiChatRoot','notesResizer','aiResizer','attachmentDialog','closeAttachmentDialog','attachmentAnchorHint','addAttachmentFile','linkParsedPaper','attachmentPaperPicker','attachmentPaperChoice','confirmParsedLink','attachmentList','duplicateDialog','closeDuplicateDialog','duplicateList'].forEach(function (id) {
+   'markdownContent','markdownImageTools','selectedImageName','addImageToNote','clearSelectedImage','readingLayout','readerDivider','togglePdf','collapsePdf','pdfRail','toggleMarkdown','collapseMarkdown','markdownRail','sendSelectionToAi','translateSelection','annotateSelection','toggleNotes','toggleAi','saveState',
+   'notesPanel','notesLayoutSwitch','closeNotes','notesRail','annotationCount','paperNote','expandPaperNote','annotationListHeading','annotationList','annotationEditor',
+   'annotationEditorTitle','annotationDraftStatus','closeAnnotationEditor','cancelAnnotationEditor','locateAnnotationDraft','selectedQuote','annotationText','confirmAnnotation','metadataDialog','editMetadata','customTitle','tagChips','availableTags','tagInput','addTag','saveMetadata','tagManagerDialog','tagManagerSummary','tagManagerSearch','tagManagerList','tagActionDialog','tagActionTitle','tagActionDescription','tagActionInput','tagSuggestions','confirmTagAction','favoritePaper','toast','aiPanel','aiRail','collapseAi','aiChatRoot','notesResizer','aiResizer','attachmentDialog','closeAttachmentDialog','attachmentAnchorHint','addAttachmentFile','linkParsedPaper','attachmentPaperPicker','attachmentPaperChoice','confirmParsedLink','attachmentList','duplicateDialog','closeDuplicateDialog','duplicateList'].forEach(function (id) {
     els[id] = document.getElementById(id);
   });
 
@@ -128,7 +131,10 @@
       els.fileTree.innerHTML = '<div class="tree-empty">没有符合当前条件的论文。</div>';
       return;
     }
-    if (query) {
+    if (state.scope === 'added') {
+      filtered.sort(function (a, b) { return String(b.addedAt || '').localeCompare(String(a.addedAt || '')) || String(a.path).localeCompare(String(b.path), 'zh-CN'); });
+      els.fileTree.innerHTML = filtered.map(function (paper) { return paperRow(paper, 0, paper.title || paper.parsedTitle || paper.name, true, true); }).join('');
+    } else if (query) {
       els.fileTree.innerHTML = filtered.map(function (paper) { return paperRow(paper, 0, paper.title || paper.parsedTitle || paper.name, true); }).join('');
     } else if (state.scope === 'recent') {
       filtered.sort(function (a, b) { return String(b.lastOpenedAt || '').localeCompare(String(a.lastOpenedAt || '')); });
@@ -204,12 +210,14 @@
       '<div class="tree-children">' + children + '</div></div>';
   }
 
-  function paperRow(paper, depth, label, searchResult) {
+  function paperRow(paper, depth, label, searchResult, addedResult) {
     var active = paper.path === state.currentPath ? ' active' : '';
     var attachments = state.attachments.filter(function (item) { return item.parent === paper.path; });
     var expanded = !!state.expandedPapers[paper.path];
-    return '<div class="tree-row paper' + active + (attachments.length ? ' has-attachments' : '') + (searchResult ? ' search-result' : '') + '" data-paper="' + escapeHtml(paper.path) + '" style="padding-left:' + (8 + depth * 14) + 'px" title="' + escapeHtml(paper.path) + '">' +
-      '<span class="tree-arrow">' + (attachments.length ? (expanded ? '▼' : '▶') : '') + '</span><span class="tree-icon">▤</span><span class="tree-label">' + (searchResult ? '<strong>' + escapeHtml(label || paper.name) + '</strong><small>' + escapeHtml(paper.path) + '</small>' : escapeHtml(label || paper.name)) + '</span>' +
+    var addedDate = new Date(paper.addedAt);
+    var addedLabel = addedResult && !isNaN(addedDate.getTime()) ? (paper.addedTimeEstimated ? '约 ' : '') + addedDate.toLocaleString('zh-CN', { year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', hour12: false }) + ' 加入' : '';
+    return '<div class="tree-row paper' + active + (attachments.length ? ' has-attachments' : '') + (searchResult ? ' search-result' : '') + '" data-paper="' + escapeHtml(paper.path) + '" style="padding-left:' + (8 + depth * 14) + 'px" title="' + escapeHtml(paper.path + (addedResult ? '\n' + (paper.addedTimeEstimated ? '入库时间估计：' : '入库时间：') + new Date(paper.addedAt).toLocaleString('zh-CN') : '')) + '">' +
+      '<span class="tree-arrow">' + (attachments.length ? (expanded ? '▼' : '▶') : '') + '</span><span class="tree-icon">▤</span><span class="tree-label">' + (searchResult ? '<strong>' + escapeHtml(label || paper.name) + '</strong><small>' + escapeHtml((addedLabel ? addedLabel + ' · ' : '') + paper.path) + '</small>' : escapeHtml(label || paper.name)) + '</span>' +
       (paper.favorite ? '<span class="favorite-marker" title="已收藏">★</span>' : '') +
       '<span class="status-dot ' + escapeHtml(paper.status || 'unread') + '" title="' + statusLabel(paper.status) + '"></span></div>' +
       (attachments.length ? '<div class="tree-attachment-children' + (expanded ? '' : ' collapsed') + '">' + attachments.map(function (link) {
@@ -394,21 +402,16 @@
       });
       var keep = sorted[0];
       return '<div class="duplicate-group"><strong>建议保留：' + escapeHtml(keep.name) + '</strong><p class="attachment-hint">' + escapeHtml(keep.path) + '</p>' + papers.map(function (paper) {
-        var hasReading = paper.annotations || paper.note || paper.chat || paper.favorite || paper.tags || paper.status === 'deep' || paper.status === 'skimmed';
         return '<div class="duplicate-paper"><span title="' + escapeHtml(paper.path) + '">' + escapeHtml(paper.path) + '</span><small>批注 ' + paper.annotations + ' · 笔记 ' + (paper.note ? '有' : '无') + ' · AI 对话 ' + (paper.chat ? '有' : '无') + ' · 附件 ' + paper.attachments + '</small>' +
           (paper.path === keep.path ? '<small>保留</small>' :
             (paper.attachments ? '<button class="button secondary" type="button" data-group="' + groupIndex + '" data-transfer="' + escapeHtml(paper.path) + '" data-keep="' + escapeHtml(keep.path) + '">转移附件</button>' : '') +
-            (hasReading ? '<small title="有阅读记录，需先人工整理">需整理记录</small>' : '<button class="button secondary" type="button" data-group="' + groupIndex + '" data-delete="' + escapeHtml(paper.path) + '" data-keep="' + escapeHtml(keep.path) + '">删除此副本</button>')) + '</div>';
+            '<button class="button secondary" type="button" data-group="' + groupIndex + '" data-recycle="' + escapeHtml(paper.path) + '" data-keep="' + escapeHtml(keep.path) + '">移至回收站</button>') + '</div>';
       }).join('') + '</div>';
     }).join('') : '<p class="attachment-hint">没有发现 PDF 内容完全相同的论文。</p>';
-    Array.prototype.forEach.call(els.duplicateList.querySelectorAll('[data-delete]'), function (button) {
+    Array.prototype.forEach.call(els.duplicateList.querySelectorAll('[data-recycle]'), function (button) {
       button.addEventListener('click', function () {
         var group = state.duplicates[Number(button.getAttribute('data-group'))];
-        var remove = button.getAttribute('data-delete'), keep = button.getAttribute('data-keep');
-        if (!window.confirm('将永久删除整个论文目录：\n' + remove + '\n\n保留：' + keep + '\n\n这不会进入回收站。确认删除？')) return;
-        api('/api/duplicates/delete', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ delete: remove, keep: keep, hash: group.hash }) })
-          .then(function () { return loadTree(true); }).then(renderDuplicateList)
-          .catch(function (error) { showToast('无法删除：' + error.message); });
+        openPaperRecycle(button.getAttribute('data-recycle'), { keep: button.getAttribute('data-keep'), hash: group.hash });
       });
     });
     Array.prototype.forEach.call(els.duplicateList.querySelectorAll('[data-transfer]'), function (button) {
@@ -425,8 +428,13 @@
 
   function clearPaper() {
     closeAttachmentViewer();
+    suspendAnnotationEditor();
+    state.annotationDrafts = Object.create(null);
+    if (state.notesExpanded) setNotesExpanded(false);
+    window.LiteraturePaperNotes.setPaper(null);
     state.currentPath = null;
     state.currentPaper = null;
+    clearMarkdownImageSelection();
     state.markdownSource = '';
     state.selectedImage = null;
     state.selectedText = null;
@@ -442,6 +450,9 @@
     if (path === state.currentPath && !els.paperView.classList.contains('hidden')) return;
     closeAttachmentViewer();
     var token = ++state.loadToken;
+    suspendAnnotationEditor();
+    window.LiteraturePaperNotes.setPaper(null);
+    clearMarkdownImageSelection();
     Promise.resolve(state.dirty ? saveNow() : null).then(function () {
       state.currentPath = path;
       state.selectedText = null;
@@ -474,7 +485,7 @@
       els.paperTitle.title = state.currentPaper.review.title || state.currentPaper.name;
       els.paperMeta.textContent = state.currentPaper.path;
       els.pdfName.textContent = state.currentPaper.pdfName;
-      els.paperNote.value = state.currentPaper.review.note || '';
+      window.LiteraturePaperNotes.setPaper(state.currentPaper);
       updateStatusButtons();
       updateFavoriteButton();
       renderTree();
@@ -538,7 +549,7 @@
         image.setAttribute('data-paper-file', source);
         image.src = '/content/asset?paper=' + encodeURIComponent(state.currentPath) + '&file=' + encodeURIComponent(source);
       }
-      image.title = image.getAttribute('data-paper-file') ? '单击选择图片，可发送给 AI' : (image.title || '图片');
+      image.title = image.getAttribute('data-paper-file') ? '单击选择图片，可加入笔记或发送给 AI' : (image.title || '图片');
     });
     Array.prototype.forEach.call(els.markdownContent.querySelectorAll('a'), function (link) {
       var href = link.getAttribute('href') || '';
@@ -610,6 +621,7 @@
       state.currentPaper.review.pdfCollapsed = false;
       state.selectedText = null;
       state.selectedImage = null;
+      updateImageNoteTools();
       window.getSelection().removeAllRanges();
       els.annotateSelection.disabled = true;
       els.translateSelection.disabled = true;
@@ -621,17 +633,20 @@
     if (save !== false) scheduleSave();
   }
 
-  function setExplorerCollapsed(collapsed) {
+  function setExplorerCollapsed(collapsed, temporary) {
+    if (!temporary && state.notesLayoutAuto) state.notesLayoutAuto.explorer = false;
     els.appShell.classList.toggle('explorer-collapsed', !!collapsed);
     els.explorerPanel.classList.toggle('collapsed', !!collapsed);
     els.toggleExplorer.setAttribute('aria-pressed', String(!collapsed));
     els.toggleExplorer.textContent = collapsed ? '展开目录' : '收起目录';
     els.toggleExplorer.title = els.toggleExplorer.textContent;
     els.toggleExplorer.setAttribute('aria-label', els.toggleExplorer.title);
-    localStorage.setItem('ai-literature-reader.explorer-collapsed', String(!!collapsed));
+    if (!temporary) localStorage.setItem('ai-literature-reader.explorer-collapsed', String(!!collapsed));
+    if (state.notesExpanded) fitNotesWidth();
   }
 
   function setNotesCollapsed(collapsed) {
+    if (collapsed && state.notesExpanded) setNotesExpanded(false);
     els.notesPanel.classList.toggle('collapsed', !!collapsed);
     els.toggleNotes.setAttribute('aria-pressed', String(!collapsed));
     els.toggleNotes.textContent = collapsed ? '展开批注栏' : '收起批注栏';
@@ -639,12 +654,25 @@
     localStorage.setItem('ai-literature-reader.notes-collapsed', String(!!collapsed));
   }
 
-  function setAiCollapsed(collapsed, focus) {
+  function setNotesLayout(layout, remember) {
+    if (['balanced', 'notes', 'annotations'].indexOf(layout) < 0) layout = 'balanced';
+    els.notesPanel.dataset.noteLayout = layout;
+    els.notesLayoutSwitch.querySelectorAll('button').forEach(function (button) {
+      button.setAttribute('aria-pressed', String(button.dataset.notesLayout === layout));
+    });
+    if (remember !== false) {
+      try { localStorage.setItem('ai-literature-reader.notes-layout', layout); } catch (_) {}
+    }
+  }
+
+  function setAiCollapsed(collapsed, focus, temporary) {
+    if (!temporary && state.notesLayoutAuto) state.notesLayoutAuto.ai = false;
     els.aiPanel.classList.toggle('collapsed', !!collapsed);
     els.toggleAi.setAttribute('aria-pressed', String(!collapsed));
     els.toggleAi.textContent = collapsed ? '展开 AI' : '收起 AI';
     els.toggleAi.title = els.toggleAi.textContent;
-    localStorage.setItem('ai-literature-reader.ai-collapsed', String(!!collapsed));
+    if (!temporary) localStorage.setItem('ai-literature-reader.ai-collapsed', String(!!collapsed));
+    if (state.notesExpanded) fitNotesWidth();
     if (!collapsed && focus) window.AILiteratureChat.focus();
   }
 
@@ -673,17 +701,20 @@
     els.annotateSelection.disabled = false;
     els.translateSelection.disabled = state.translating;
     state.selectedImage = null;
+    updateImageNoteTools();
     Array.prototype.forEach.call(els.markdownContent.querySelectorAll('img.ai-image-selected'), function (image) { image.classList.remove('ai-image-selected'); });
     els.sendSelectionToAi.disabled = false;
     els.sendSelectionToAi.textContent = '发给 AI';
   }
 
   function selectMarkdownImage(image) {
+    if (!state.currentPaper || !state.currentPaper.hasMarkdown || state.currentPaper.path !== state.currentPath) return;
     var file = image.getAttribute('data-paper-file');
-    if (!file) { showToast('目前仅支持把论文目录中的本地图片发送给 AI'); return; }
+    if (!file) { showToast('目前仅支持选择论文目录中的本地图片'); return; }
     Array.prototype.forEach.call(els.markdownContent.querySelectorAll('img.ai-image-selected'), function (other) { other.classList.remove('ai-image-selected'); });
     image.classList.add('ai-image-selected');
-    state.selectedImage = { file: file, url: image.src };
+    state.selectedImage = { file: file, url: image.src, alt: (image.alt || '').slice(0, 240) };
+    updateImageNoteTools();
     state.selectedText = null;
     els.annotateSelection.disabled = true;
     els.translateSelection.disabled = true;
@@ -691,11 +722,55 @@
     els.sendSelectionToAi.textContent = '发送图片';
   }
 
+  function updateImageNoteTools() {
+    els.markdownImageTools.classList.toggle('hidden', !state.selectedImage);
+    if (state.selectedImage) {
+      els.selectedImageName.textContent = state.selectedImage.alt || state.selectedImage.file.split(/[\\/]/).pop();
+      els.selectedImageName.title = state.selectedImage.file;
+    }
+  }
+
+  function clearMarkdownImageSelection() {
+    state.selectedImage = null; updateImageNoteTools();
+    els.markdownContent.querySelectorAll('img.ai-image-selected').forEach(function (image) { image.classList.remove('ai-image-selected'); });
+    els.sendSelectionToAi.disabled = !state.selectedText;
+    els.sendSelectionToAi.textContent = '发给 AI';
+  }
+
+  function addAnnotationToNote(id) {
+    if (!state.currentPaper || !state.currentPaper.hasMarkdown) return;
+    var annotation = state.currentPaper.review.annotations.find(function (item) { return item.id === id; });
+    if (!annotation) return;
+    setNotesCollapsed(false);
+    if (window.LiteraturePaperNotes.addAnnotation(annotation)) showToast('批注已加入整篇笔记，保留原文、批注和来源链接。');
+  }
+
+  function locateNoteSource(kind, value) {
+    if (!state.currentPaper || !state.currentPaper.hasMarkdown || state.currentPaper.path !== state.currentPath) return;
+    if (kind === 'annotation') {
+      if (!state.currentPaper.review.annotations.some(function (item) { return item.id === value; })) {
+        showToast('原批注已删除；笔记中的摘录仍保留，可在正文中搜索核对。'); return;
+      }
+      focusAnnotation(value);
+      if (!els.markdownContent.querySelector('mark[data-annotation-id="' + cssEscape(value) + '"]')) showToast('未能定位原文，Markdown 内容可能已变化；笔记摘录仍保留。');
+      return;
+    }
+    if (kind === 'image') {
+      if (state.currentPaper.review.markdownCollapsed) setMarkdownCollapsed(false);
+      var image = Array.from(els.markdownContent.querySelectorAll('img[data-paper-file]')).find(function (item) { return item.getAttribute('data-paper-file') === value; });
+      if (!image) { showToast('当前 Markdown 中未找到这张图片，文件或正文可能已变化。'); return; }
+      image.scrollIntoView({ block: 'center', behavior: window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth' });
+      image.classList.add('note-image-located');
+      setTimeout(function () { image.classList.remove('note-image-located'); }, 2500);
+    }
+  }
+
   function sendSelectionToAi() {
     if (state.selectedImage) {
       window.AILiteratureChat.addLocalImage(state.selectedImage).then(function () {
         showToast('图片已放入 AI 对话');
         state.selectedImage = null;
+        updateImageNoteTools();
         Array.prototype.forEach.call(els.markdownContent.querySelectorAll('img.ai-image-selected'), function (image) { image.classList.remove('ai-image-selected'); });
         els.sendSelectionToAi.disabled = true;
         els.sendSelectionToAi.textContent = '发给 AI';
@@ -756,51 +831,106 @@
     });
   }
 
-  function openNewAnnotationDialog() {
-    if (!state.selectedText) return;
-    state.editingAnnotationId = null;
-    els.dialogTitle.textContent = '添加文字批注';
-    els.selectedQuote.textContent = state.selectedText.quote;
-    els.annotationText.value = '';
-    els.annotationDialog.showModal();
-    setTimeout(function () { els.annotationText.focus(); }, 20);
+  function annotationDraftChanged(draft) {
+    return !!draft && String(draft.comment || '').trim() !== String(draft.originalComment || '').trim();
   }
 
-  function openEditAnnotationDialog(id) {
+  function suspendAnnotationEditor() {
+    // Drafts stay in memory per paper; scrolling, copying and switching papers do not save or discard them.
+    state.annotationDraft = null;
+    els.annotationEditor.classList.add('hidden');
+    els.notesPanel.classList.remove('annotation-composing');
+  }
+
+  function renderAnnotationEditor(focus) {
+    var valid = state.currentPaper && state.currentPaper.hasMarkdown && state.currentPaper.path === state.currentPath;
+    var draft = valid ? state.annotationDrafts[state.currentPath] : null;
+    if (!draft) { suspendAnnotationEditor(); return; }
+    if (state.annotationDraft !== draft) els.annotationEditor.scrollTop = 0;
+    state.annotationDraft = draft;
+    els.annotationEditor.classList.remove('hidden');
+    els.notesPanel.classList.add('annotation-composing');
+    els.annotationEditorTitle.textContent = draft.id ? '修改文字批注' : '添加文字批注';
+    els.selectedQuote.textContent = draft.quote;
+    if (els.annotationText.value !== draft.comment) els.annotationText.value = draft.comment;
+    els.annotationText.removeAttribute('aria-invalid');
+    els.annotationDraftStatus.classList.remove('error');
+    els.annotationDraftStatus.textContent = annotationDraftChanged(draft) ? '未保存草稿 · 收起侧栏或切换论文会暂存，关闭程序后不保留' : '可继续阅读、选字和复制，最初的原文不会改变';
+    if (focus) { setNotesCollapsed(false); setNotesLayout('annotations', false); els.annotationText.focus({ preventScroll: true }); }
+  }
+
+  function beginAnnotationDraft(id, source) {
+    if (!state.currentPaper || !state.currentPaper.hasMarkdown || state.currentPaper.path !== state.currentPath) return;
+    var previous = state.annotationDrafts[state.currentPath];
+    if (previous && previous.id === id && (id || (previous.quote === source.quote && previous.prefix === source.prefix && previous.suffix === source.suffix))) {
+      renderAnnotationEditor(true); return;
+    }
+    if (annotationDraftChanged(previous) && !window.confirm('当前有尚未保存的批注，放弃这份草稿并编辑另一条？')) return;
+    var original = id ? String(source.comment || '') : '';
+    state.annotationDrafts[state.currentPath] = {
+      paper: state.currentPath, id: id, quote: source.quote, prefix: source.prefix || '', suffix: source.suffix || '',
+      originalComment: original, comment: original
+    };
+    renderAnnotationEditor(true);
+  }
+
+  function openNewAnnotationEditor() {
+    if (state.selectedText) beginAnnotationDraft(null, Object.assign({}, state.selectedText));
+  }
+
+  function openEditAnnotationEditor(id) {
     var annotation = findAnnotation(id);
-    if (!annotation) return;
-    state.editingAnnotationId = id;
-    els.dialogTitle.textContent = '修改文字批注';
-    els.selectedQuote.textContent = annotation.quote;
-    els.annotationText.value = annotation.comment || '';
-    els.annotationDialog.showModal();
-    setTimeout(function () { els.annotationText.focus(); }, 20);
+    if (annotation) beginAnnotationDraft(id, annotation);
+  }
+
+  function cancelAnnotationEditor() {
+    var draft = state.annotationDraft;
+    if (!draft) return;
+    if (annotationDraftChanged(draft) && !window.confirm('放弃这次未保存的批注编辑？')) return;
+    delete state.annotationDrafts[draft.paper];
+    suspendAnnotationEditor();
+  }
+
+  function locateAnnotationDraft() {
+    var draft = state.annotationDraft;
+    if (!draft || !state.currentPaper || state.currentPath !== draft.paper) return;
+    if (state.currentPaper.review.markdownCollapsed) setMarkdownCollapsed(false);
+    if (draft.id) { focusAnnotation(draft.id); return; }
+    var nodes = collectTextNodes(), full = nodes.map(function (item) { return item.node.nodeValue; }).join('');
+    var start = chooseMatch(full, draft);
+    var target = nodes.find(function (item) { return item.start <= start && item.start + item.node.nodeValue.length > start; });
+    if (start < 0 || !target) { showToast('未能定位选中的原文，正文内容可能已变化。'); return; }
+    target.node.parentElement.scrollIntoView({ block: 'center', behavior: window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth' });
   }
 
   function confirmAnnotation(event) {
     event.preventDefault();
+    var draft = state.annotationDraft;
+    if (!draft || !state.currentPaper || state.currentPath !== draft.paper || state.currentPaper.path !== draft.paper) return;
     var comment = els.annotationText.value.trim();
-    if (!comment) { els.annotationText.focus(); return; }
-    var now = new Date().toISOString();
-    if (state.editingAnnotationId) {
-      var existing = findAnnotation(state.editingAnnotationId);
-      if (existing) { existing.comment = comment; existing.updatedAt = now; }
+    if (!comment) {
+      els.annotationDraftStatus.textContent = '请先写下批注内容，或点击取消。';
+      els.annotationDraftStatus.classList.add('error'); els.annotationText.setAttribute('aria-invalid', 'true');
+      els.annotationText.focus({ preventScroll: true }); return;
+    }
+    var now = new Date().toISOString(), annotation;
+    if (draft.id) {
+      annotation = findAnnotation(draft.id);
+      if (!annotation) { showToast('原批注已删除，不能覆盖保存；请取消后重新选取原文。'); return; }
+      annotation.comment = comment; annotation.updatedAt = now;
+      els.markdownContent.querySelectorAll('mark[data-annotation-id="' + cssEscape(draft.id) + '"]').forEach(function (mark) { mark.title = comment; });
     } else {
-      var annotation = {
-        id: makeId(), quote: state.selectedText.quote, prefix: state.selectedText.prefix,
-        suffix: state.selectedText.suffix, comment: comment, kind: 'note', createdAt: now, updatedAt: now
+      annotation = {
+        id: makeId(), quote: draft.quote, prefix: draft.prefix, suffix: draft.suffix,
+        comment: comment, kind: 'note', createdAt: now, updatedAt: now
       };
       state.currentPaper.review.annotations.push(annotation);
       applyOneHighlight(annotation);
     }
-    els.annotationDialog.close();
-    window.getSelection().removeAllRanges();
-    state.selectedText = null;
-    els.annotateSelection.disabled = true;
-    els.translateSelection.disabled = true;
-    renderAnnotations();
-    setNotesCollapsed(false);
-    scheduleSave();
+    delete state.annotationDrafts[draft.paper]; suspendAnnotationEditor();
+    renderAnnotations(); setNotesCollapsed(false); scheduleSave();
+    var card = els.annotationList.querySelector('.annotation-card[data-id="' + cssEscape(annotation.id) + '"]');
+    if (card) { card.classList.add('active'); card.scrollIntoView({ block: 'nearest' }); }
   }
 
   function makeId() {
@@ -814,7 +944,10 @@
   }
 
   function deleteAnnotation(id) {
-    if (!state.currentPaper || !window.confirm('删除这条批注？')) return;
+    if (!state.currentPaper) return;
+    var draft = state.annotationDrafts[state.currentPath], editing = draft && draft.id === id;
+    if (!window.confirm(editing && annotationDraftChanged(draft) ? '删除这条批注，并放弃它尚未保存的修改？' : '删除这条批注？')) return;
+    if (editing) { delete state.annotationDrafts[state.currentPath]; suspendAnnotationEditor(); }
     state.currentPaper.review.annotations = state.currentPaper.review.annotations.filter(function (item) { return item.id !== id; });
     Array.prototype.forEach.call(els.markdownContent.querySelectorAll('mark[data-annotation-id="' + cssEscape(id) + '"]'), function (mark) {
       var parent = mark.parentNode;
@@ -831,8 +964,10 @@
   }
 
   function renderAnnotations() {
+    renderAnnotationEditor(false);
     var annotations = state.currentPaper ? state.currentPaper.review.annotations : [];
     var pdfOnlyWithoutAnnotations = state.currentPaper && !state.currentPaper.hasMarkdown && !annotations.length;
+    els.notesPanel.classList.toggle('only-paper-note', !!pdfOnlyWithoutAnnotations);
     els.annotationCount.textContent = pdfOnlyWithoutAnnotations ? '整篇论文笔记' : annotations.length + ' 条批注';
     els.annotationListHeading.classList.toggle('hidden', !!pdfOnlyWithoutAnnotations);
     els.annotationList.classList.toggle('hidden', !!pdfOnlyWithoutAnnotations);
@@ -846,13 +981,15 @@
         '<div class="annotation-quote" title="定位到原文">“' + escapeHtml(annotation.quote) + '”</div>' +
         '<div class="annotation-comment">' + escapeHtml(annotation.comment) + '</div>' +
         '<div class="annotation-card-footer"><span>' + formatDate(annotation.updatedAt || annotation.createdAt) + '</span>' +
-        '<div class="annotation-card-actions"><button data-action="edit">修改</button><button data-action="delete">删除</button></div></div></article>';
+        '<div class="annotation-card-actions">' + (state.currentPaper.hasMarkdown ? '<button data-action="note" title="将原文和批注加入整篇笔记：编辑时插入光标处，阅读时追加到文末">加入笔记</button>' : '') + '<button data-action="edit">修改</button><button data-action="delete">删除</button></div></div></article>';
     }).join('');
     Array.prototype.forEach.call(els.annotationList.querySelectorAll('.annotation-card'), function (card) {
       var id = card.getAttribute('data-id');
       card.querySelector('.annotation-quote').addEventListener('click', function () { focusAnnotation(id); });
-      card.querySelector('[data-action="edit"]').addEventListener('click', function () { openEditAnnotationDialog(id); });
+      card.querySelector('[data-action="edit"]').addEventListener('click', function () { openEditAnnotationEditor(id); });
       card.querySelector('[data-action="delete"]').addEventListener('click', function () { deleteAnnotation(id); });
+      var addNote = card.querySelector('[data-action="note"]');
+      if (addNote) addNote.addEventListener('click', function () { addAnnotationToNote(id); });
     });
   }
 
@@ -1188,10 +1325,11 @@
   }
 
   function scheduleSave() {
-    if (!state.currentPaper) return;
+    if (!state.currentPaper || state.recyclingPaper === state.currentPath) return;
     state.dirty = true;
     els.saveState.textContent = '待保存';
     els.saveState.className = 'save-state saving';
+    window.LiteraturePaperNotes.saveState('待保存');
     clearTimeout(state.saveTimer);
     state.saveTimer = setTimeout(saveNow, 650);
   }
@@ -1204,13 +1342,14 @@
     state.dirty = false;
     els.saveState.textContent = '保存中';
     els.saveState.className = 'save-state saving';
+    window.LiteraturePaperNotes.saveState('保存中…');
     return api('/api/save', {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ paperPath: path, review: review })
     }).then(function () {
-      if (state.currentPath === path) { els.saveState.textContent = '已保存'; els.saveState.className = 'save-state'; }
+      if (state.currentPath === path && !state.dirty) { els.saveState.textContent = '已保存'; els.saveState.className = 'save-state'; window.LiteraturePaperNotes.saveState('已保存'); }
     }).catch(function (error) {
-      if (state.currentPath === path) { state.dirty = true; els.saveState.textContent = '失败'; els.saveState.className = 'save-state error'; }
+      if (state.currentPath === path) { state.dirty = true; els.saveState.textContent = '失败'; els.saveState.className = 'save-state error'; window.LiteraturePaperNotes.saveState('保存失败，请重试'); }
       showToast('保存失败：' + error.message);
     });
   }
@@ -1256,6 +1395,48 @@
     var aiWidth = Math.max(340, Math.min(720, Number(localStorage.getItem('ai-literature-reader.ai-width')) || aiDefault));
     els.notesPanel.style.setProperty('--notes-width', notesWidth + 'px');
     els.aiPanel.style.setProperty('--ai-width', aiWidth + 'px');
+    if (state.notesExpanded) fitNotesWidth();
+  }
+
+  function notesMaximumWidth() {
+    var explorer = els.explorerPanel.classList.contains('collapsed') ? 38 : (window.innerWidth <= 1450 ? 235 : 280);
+    var ai = els.aiPanel.classList.contains('collapsed') ? 38 : (parseFloat(els.aiPanel.style.getPropertyValue('--ai-width')) || 440);
+    var readingMinimum = Math.min(400, Math.max(180, window.innerWidth * 0.36));
+    return Math.max(180, Math.min(860, els.appShell.clientWidth - explorer - ai - readingMinimum));
+  }
+
+  function fitNotesWidth() {
+    if (!state.notesExpanded) return;
+    var preferred = Number(localStorage.getItem('ai-literature-reader.notes-expanded-width')) || Math.max(460, window.innerWidth * 0.36);
+    els.notesPanel.style.setProperty('--notes-width', Math.round(Math.min(notesMaximumWidth(), Math.max(300, preferred))) + 'px');
+  }
+
+  function setNotesExpanded(expanded) {
+    if (expanded && !state.currentPaper) return;
+    if (expanded === state.notesExpanded) return;
+    state.notesExpanded = !!expanded;
+    els.notesPanel.classList.toggle('notes-expanded', !!expanded);
+    els.appShell.classList.toggle('notes-writing', !!expanded);
+    els.expandPaperNote.textContent = expanded ? '收回侧栏' : '并排展开';
+    els.expandPaperNote.setAttribute('aria-pressed', String(!!expanded));
+    els.expandPaperNote.title = expanded ? '恢复普通笔记侧栏宽度' : '与论文并排展开笔记';
+    if (expanded) {
+      setNotesCollapsed(false);
+      state.notesLayoutAuto = { ai: false, explorer: false };
+      // Make room when necessary, restoring only panels that were folded here.
+      if (notesMaximumWidth() < 460 && !els.aiPanel.classList.contains('collapsed')) {
+        state.notesLayoutAuto.ai = true; setAiCollapsed(true, false, true);
+      }
+      if (notesMaximumWidth() < 420 && !els.explorerPanel.classList.contains('collapsed')) {
+        state.notesLayoutAuto.explorer = true; setExplorerCollapsed(true, true);
+      }
+      fitNotesWidth();
+    } else {
+      var restore = state.notesLayoutAuto; state.notesLayoutAuto = null;
+      if (restore && restore.ai) setAiCollapsed(false, false, true);
+      if (restore && restore.explorer) setExplorerCollapsed(false, true);
+      applySidePanelWidths();
+    }
   }
 
   function beginSidePanelDrag(panel, cssVariable, storageKey, minimum, maximum, event) {
@@ -1271,7 +1452,8 @@
     try { handle.setPointerCapture(pointerId); } catch (_) { }
     function move(e) {
       if (finished || e.pointerId !== pointerId) return;
-      var width = Math.max(minimum, Math.min(maximum, startWidth + startX - e.clientX));
+      var dynamicMaximum = typeof maximum === 'function' ? maximum() : maximum;
+      var width = Math.max(Math.min(minimum, dynamicMaximum), Math.min(dynamicMaximum, startWidth + startX - e.clientX));
       panel.style.setProperty(cssVariable, Math.round(width) + 'px');
     }
     function finish(e) {
@@ -1299,67 +1481,13 @@
     }).catch(function (error) { showToast('选择文件夹失败：' + error.message); })
       .then(function () { els.chooseRoot.disabled = false; });
   });
-  els.importPdfs.addEventListener('click', function () {
-    els.importPdfFiles.value = '';
-    els.importPdfFiles.click();
-  });
-  els.importPdfFiles.addEventListener('change', async function () {
-    var files = Array.from(els.importPdfFiles.files || []);
-    if (!files.length) return;
-    els.importPdfs.disabled = true;
-    var imported = 0;
-    var errors = [];
-    try {
-      for (var index = 0; index < files.length; index++) {
-        var file = files[index];
-        var id = null;
-        try {
-          els.importPdfs.textContent = '导入 ' + (index + 1) + '/' + files.length;
-          var started = await api('/api/papers/import-pdfs/start', {
-            method: 'POST', headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ name: file.name, size: file.size })
-          });
-          id = started.id;
-          var offset = 0;
-          while (offset < file.size) {
-            var chunk = file.slice(offset, Math.min(offset + 1024 * 1024, file.size));
-            await api('/api/papers/import-pdfs/chunk?id=' + encodeURIComponent(id) + '&offset=' + offset, {
-              method: 'POST', body: chunk
-            });
-            offset += chunk.size;
-            els.importPdfs.textContent = '导入 ' + (index + 1) + '/' + files.length + ' · ' + Math.round(offset * 100 / file.size) + '%';
-          }
-          await api('/api/papers/import-pdfs/complete', {
-            method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id: id })
-          });
-          id = null;
-          imported++;
-        } catch (error) {
-          errors.push({ source: file.name, error: error.message });
-          if (id) {
-            try { await api('/api/papers/import-pdfs/cancel', {
-              method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id: id })
-            }); } catch (_) { }
-          }
-        }
-      }
-      if (imported) await loadTree(true);
-      showToast('已导入 ' + imported + ' 篇论文' + (errors.length ? '，失败 ' + errors.length + ' 篇' : ''));
-      if (errors.length) window.alert('以下 PDF 导入失败：\n' + errors.map(function (item) { return item.source + '：' + item.error; }).join('\n'));
-    } catch (error) { showToast('更新论文库失败：' + error.message); }
-    finally {
-      els.importPdfs.disabled = false;
-      els.importPdfs.textContent = '导入论文 PDF';
-      els.importPdfFiles.value = '';
-    }
-  });
   els.refreshTree.addEventListener('click', function () { loadTree(true); });
   els.manageTags.addEventListener('click', openTagManager);
   els.libraryScope.addEventListener('click', function (event) {
     var button = event.target.closest('button[data-scope]');
     if (!button) return;
     state.scope = button.getAttribute('data-scope');
-    Array.prototype.forEach.call(els.libraryScope.querySelectorAll('button'), function (item) { item.classList.toggle('active', item === button); });
+    Array.prototype.forEach.call(els.libraryScope.querySelectorAll('button'), function (item) { item.classList.toggle('active', item === button); item.setAttribute('aria-pressed', String(item === button)); });
     renderTree();
   });
   els.treeSearch.addEventListener('input', function () { state.query = els.treeSearch.value; renderTree(); });
@@ -1386,9 +1514,29 @@
     if (image && els.markdownContent.contains(image)) selectMarkdownImage(image);
   });
   els.sendSelectionToAi.addEventListener('click', sendSelectionToAi);
+  els.addImageToNote.addEventListener('click', function () {
+    if (!state.selectedImage || !state.currentPaper || !state.currentPaper.hasMarkdown) return;
+    setNotesCollapsed(false);
+    if (window.LiteraturePaperNotes.addImage(state.selectedImage)) showToast('图片已加入整篇笔记，可切换“阅读”查看，或继续填写自己的理解。');
+  });
+  els.clearSelectedImage.addEventListener('click', clearMarkdownImageSelection);
   els.translateSelection.addEventListener('click', translateSelection);
-  els.annotateSelection.addEventListener('click', openNewAnnotationDialog);
-  els.confirmAnnotation.addEventListener('click', confirmAnnotation);
+  els.annotateSelection.addEventListener('click', openNewAnnotationEditor);
+  els.annotationEditor.addEventListener('submit', confirmAnnotation);
+  els.closeAnnotationEditor.addEventListener('click', cancelAnnotationEditor);
+  els.cancelAnnotationEditor.addEventListener('click', cancelAnnotationEditor);
+  els.locateAnnotationDraft.addEventListener('click', locateAnnotationDraft);
+  els.annotationText.addEventListener('input', function () {
+    if (!state.annotationDraft) return;
+    state.annotationDraft.comment = els.annotationText.value;
+    els.annotationText.removeAttribute('aria-invalid'); els.annotationDraftStatus.classList.remove('error');
+    els.annotationDraftStatus.textContent = annotationDraftChanged(state.annotationDraft) ? '未保存草稿 · 收起侧栏或切换论文会暂存，关闭程序后不保留' : '可继续阅读、选字和复制，最初的原文不会改变';
+  });
+  els.annotationEditor.addEventListener('keydown', function (event) {
+    if (event.isComposing) return;
+    if ((event.ctrlKey || event.metaKey) && event.key === 'Enter') { event.preventDefault(); confirmAnnotation(event); }
+    if (event.key === 'Escape') { event.preventDefault(); event.stopPropagation(); cancelAnnotationEditor(); }
+  });
   els.editMetadata.addEventListener('click', openMetadataDialog);
   els.addTag.addEventListener('click', addPendingTag);
   els.tagInput.addEventListener('keydown', function (event) {
@@ -1416,6 +1564,74 @@
       .catch(function (error) { showToast('打开论文目录失败：' + error.message); });
   });
   els.manageAttachments.addEventListener('click', openAttachmentDialog);
+  var openPaperRecycle;
+  // Both entry points share the same confirmation and recycling operation.
+  (function () {
+    var action = document.getElementById('recyclePaper');
+    var dialog = document.createElement('dialog');
+    dialog.className = 'paper-recycle-dialog';
+    dialog.setAttribute('aria-labelledby', 'paperRecycleHeading');
+    dialog.innerHTML = '<h2 id="paperRecycleHeading">移至回收站</h2><p class="recycle-title"></p>' +
+      '<p>将整个论文目录（包括 PDF、Markdown 和图片）移至 Windows 回收站：</p><div class="recycle-path"></div>' +
+      '<div class="recycle-records"></div><p class="recycle-keep"></p><p class="recycle-help">独立保存的笔记、批注、引用、AI 对话和附件文件会保留。从系统回收站还原到原位置后，可继续使用。</p>' +
+      '<p class="recycle-error" role="alert"></p><div class="recycle-buttons"><button type="button" class="button secondary recycle-cancel">取消</button><button type="button" class="button recycle-confirm">移至回收站</button></div>';
+    document.body.appendChild(dialog);
+    var cancel = dialog.querySelector('.recycle-cancel'), confirm = dialog.querySelector('.recycle-confirm');
+    var error = dialog.querySelector('.recycle-error'), pending = false, preview = null, generation = 0;
+    cancel.addEventListener('click', function () { if (!pending) dialog.close(); });
+    dialog.addEventListener('cancel', function (e) { if (pending) e.preventDefault(); });
+    dialog.addEventListener('close', function () { ++generation; });
+    action.addEventListener('click', function () { if (state.currentPath) openPaperRecycle(state.currentPath); });
+    openPaperRecycle = async function (path, duplicate) {
+      if (pending || dialog.open || !path) return;
+      if (state.translating && state.currentPath === path) { showToast('正在翻译，请完成后再移至回收站。'); return; }
+      if (state.annotationDrafts[path]) { showToast('请先保存或取消当前批注草稿，再移至回收站。'); return; }
+      var token = ++generation;
+      preview = null; error.textContent = ''; confirm.disabled = true;
+      dialog.querySelector('.recycle-title').textContent = path;
+      dialog.querySelector('.recycle-keep').textContent = duplicate ? '保留的副本：' + duplicate.keep : '';
+      dialog.querySelector('.recycle-path').textContent = '正在读取目录信息…';
+      dialog.querySelector('.recycle-records').textContent = '';
+      dialog.showModal(); cancel.focus();
+      try {
+        await saveNow();
+        if (state.dirty) throw new Error('当前阅读记录未保存成功，请重试保存后再操作。');
+        var data = await api('/api/paper/recycle-preview?path=' + encodeURIComponent(path));
+        if (!dialog.open || token !== generation) return;
+        if (duplicate) { data.keep = duplicate.keep; data.hash = duplicate.hash; }
+        preview = data;
+        dialog.querySelector('.recycle-title').textContent = data.title;
+        dialog.querySelector('.recycle-path').textContent = data.directory;
+        dialog.querySelector('.recycle-records').textContent = '已有记录：' + data.annotations + ' 条批注' +
+          (data.hasNote ? ' · 有整篇论文笔记' : '') + (data.hasCitation ? ' · 有引用信息' : '') + ' · ' + data.attachments + ' 项附件关联';
+        error.textContent = (data.warnings || []).join('；'); confirm.disabled = false;
+      } catch (e) { if (dialog.open && token === generation) error.textContent = e.message; }
+    };
+    confirm.addEventListener('click', async function () {
+      if (pending || !preview) return;
+      var path = preview.path;
+      pending = true; cancel.disabled = true; confirm.disabled = true; confirm.textContent = '正在移至回收站…'; error.textContent = '';
+      try {
+        if (state.currentPath === path) clearTimeout(els.markdownContent._scrollTimer);
+        await saveNow();
+        if (state.dirty) throw new Error('当前阅读记录未保存成功，请重试后再操作。');
+        state.recyclingPaper = path;
+        // Release the PDF viewer's file handle before asking Windows to move the folder.
+        if (state.currentPath === path) els.pdfFrame.removeAttribute('src');
+        await api('/api/paper/recycle', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(preview) });
+        if (state.currentPath === path) { ++state.loadToken; clearPaper(); }
+        dialog.close(); showToast('已移至系统回收站，阅读记录已保留。');
+        await loadTree(true);
+        if (els.duplicateDialog.open) renderDuplicateList();
+      } catch (e) {
+        error.textContent = e.message;
+        // Reopen the surviving paper if Windows cancelled or could not recycle it.
+        if (state.currentPath === path) { clearPaper(); openPaper(path); }
+      } finally {
+        state.recyclingPaper = null; pending = false; cancel.disabled = false; confirm.disabled = false; confirm.textContent = '移至回收站';
+      }
+    });
+  })();
   els.closeAttachmentDialog.addEventListener('click', function () { els.attachmentDialog.close(); });
   els.addAttachmentFile.addEventListener('click', function () {
     var body = Object.assign({ parent: state.attachmentParent }, anchorForAttachment());
@@ -1471,6 +1687,10 @@
   els.toggleNotes.addEventListener('click', function () { setNotesCollapsed(!els.notesPanel.classList.contains('collapsed')); });
   els.closeNotes.addEventListener('click', function () { setNotesCollapsed(true); });
   els.notesRail.addEventListener('click', function () { setNotesCollapsed(false); });
+  els.notesLayoutSwitch.addEventListener('click', function (event) {
+    var button = event.target.closest('button[data-notes-layout]');
+    if (button) setNotesLayout(button.dataset.notesLayout);
+  });
   els.togglePdf.addEventListener('click', function () { setPdfCollapsed(!els.readingLayout.classList.contains('pdf-collapsed')); });
   els.toggleMarkdown.addEventListener('click', function () { setMarkdownCollapsed(!els.readingLayout.classList.contains('markdown-collapsed')); });
   els.collapseMarkdown.addEventListener('click', function () { setMarkdownCollapsed(true); });
@@ -1480,7 +1700,29 @@
   els.toggleAi.addEventListener('click', function () { setAiCollapsed(!els.aiPanel.classList.contains('collapsed'), true); });
   els.collapseAi.addEventListener('click', function () { setAiCollapsed(true); });
   els.aiRail.addEventListener('click', function () { setAiCollapsed(false, true); });
-  els.paperNote.addEventListener('input', function () { if (state.currentPaper) { state.currentPaper.review.note = els.paperNote.value; scheduleSave(); } });
+  window.LiteraturePaperNotes.mount({
+    change: function (text) { if (state.currentPaper) { state.currentPaper.review.note = text; scheduleSave(); } },
+    save: saveNow,
+    locate: locateNoteSource,
+    toast: showToast
+  });
+  window.LiteratureMaterialExport.mount({ current: function () {
+    return state.currentPaper && state.currentPaper.path === state.currentPath ? { paper: state.currentPath, review: JSON.parse(JSON.stringify(state.currentPaper.review)) } : null;
+  } });
+  window.LiteraturePdfImport.mount({
+    toast: showToast,
+    root: function () { return els.libraryPath.title || ''; },
+    busy: function (value) { els.chooseRoot.disabled = value; },
+    imported: async function () {
+      await loadTree(true);
+      state.scope = 'added'; state.filter = 'all'; state.query = ''; els.treeSearch.value = '';
+      els.libraryScope.querySelectorAll('button').forEach(function (button) { button.classList.toggle('active', button.dataset.scope === 'added'); button.setAttribute('aria-pressed', String(button.dataset.scope === 'added')); });
+      els.statusFilters.querySelectorAll('button').forEach(function (button) { button.classList.toggle('active', button.dataset.filter === 'all'); });
+      renderTree();
+      return { duplicateGroups: state.duplicates.length };
+    }
+  });
+  els.expandPaperNote.addEventListener('click', function () { setNotesExpanded(!state.notesExpanded); });
   els.markdownContent.addEventListener('scroll', function () {
     if (!state.currentPaper) return;
     state.currentPaper.review.markdownScroll = els.markdownContent.scrollTop;
@@ -1488,7 +1730,10 @@
     els.markdownContent._scrollTimer = setTimeout(scheduleSave, 800);
   });
   els.readerDivider.addEventListener('pointerdown', beginDividerDrag);
-  els.notesResizer.addEventListener('pointerdown', function (event) { beginSidePanelDrag(els.notesPanel, '--notes-width', 'ai-literature-reader.notes-width', 260, 520, event); });
+  els.notesResizer.addEventListener('pointerdown', function (event) {
+    beginSidePanelDrag(els.notesPanel, '--notes-width', state.notesExpanded ? 'ai-literature-reader.notes-expanded-width' : 'ai-literature-reader.notes-width', state.notesExpanded ? 300 : 260, state.notesExpanded ? notesMaximumWidth : 520, event);
+  });
+  window.addEventListener('resize', fitNotesWidth);
   els.aiResizer.addEventListener('pointerdown', function (event) { beginSidePanelDrag(els.aiPanel, '--ai-width', 'ai-literature-reader.ai-width', 340, 720, event); });
   window.addEventListener('beforeunload', function () { if (state.dirty) saveNow(); });
   window.addEventListener('pagehide', function () { navigator.sendBeacon('/close', ''); });
@@ -1500,6 +1745,7 @@
     }).catch(function () {});
   }, 12000);
   applySidePanelWidths();
+  setNotesLayout(localStorage.getItem('ai-literature-reader.notes-layout') || 'balanced', false);
   setExplorerCollapsed(localStorage.getItem('ai-literature-reader.explorer-collapsed') === 'true');
   setNotesCollapsed(localStorage.getItem('ai-literature-reader.notes-collapsed') !== 'false');
   setAiCollapsed(localStorage.getItem('ai-literature-reader.ai-collapsed') === 'true');

@@ -1,0 +1,243 @@
+CSL styles and locales — third-party notices
+
+Retrieved 2026-10-24 from the official Citation Style Language repositories.
+Style and locale files are unmodified. Each file retains its original credits.
+Styles: https://github.com/citation-style-language/styles
+Locales: https://github.com/citation-style-language/locales
+License: Creative Commons Attribution-ShareAlike 3.0 Unported
+https://creativecommons.org/licenses/by-sa/3.0/
+
+citeproc-js: Copyright (c) 2009-2019 Frank Bennett
+https://github.com/Juris-M/citeproc-js
+Bundled unchanged under CPAL 1.0. The browser wrapper is in Build.ps1.
+Full license: CPAL.txt. Original source: assets/csl/citeproc.js.
+
+--- apa.csl ---
+<ns0:info xmlns:ns0="http://purl.org/net/xbiblio/csl">
+    <ns0:title>APA Style 7th edition</ns0:title>
+    <ns0:title-short>Publication Manual of the American Psychological Association, with Bluebook</ns0:title-short>
+    <ns0:id>http://www.zotero.org/styles/apa</ns0:id>
+    <ns0:link href="http://www.zotero.org/styles/apa" rel="self" />
+    <ns0:link href="http://www.zotero.org/styles/apa-6th-edition" rel="template" />
+    <ns0:link href="https://apastyle.apa.org/style-grammar-guidelines/references" rel="documentation" />
+    <ns0:link href="https://zotero.org/groups/2205533/collections/MR2N872S" rel="documentation" />
+    <ns0:author>
+      <ns0:name>Brenton M. Wiernik</ns0:name>
+      <ns0:email>zotero@wiernik.org</ns0:email>
+      <ns0:uri>https://orcid.org/0000-0001-9560-6336</ns0:uri>
+    </ns0:author>
+    <ns0:author>
+      <ns0:name>Andrew Dunning</ns0:name>
+      <ns0:uri>https://orcid.org/0000-0003-0464-5036</ns0:uri>
+    </ns0:author>
+    <ns0:contributor>
+      <ns0:name>Jay Pfaffman</ns0:name>
+      <ns0:email>jay@literatecomputing.com</ns0:email>
+    </ns0:contributor>
+    <ns0:category citation-format="author-date" />
+    <ns0:category field="anthropology" />
+    <ns0:category field="communications" />
+    <ns0:category field="generic-base" />
+    <ns0:category field="law" />
+    <ns0:category field="medicine" />
+    <ns0:category field="psychology" />
+    <ns0:category field="social_science" />
+    <ns0:category field="sociology" />
+    <ns0:summary>Author-date system of the Publication Manual of the American Psychological Association (2020)</ns0:summary>
+    <ns0:updated>2026-02-07T00:00:00+00:00</ns0:updated>
+    <ns0:rights license="http://creativecommons.org/licenses/by-sa/3.0/">This work is licensed under a Creative Commons Attribution-ShareAlike 3.0 License</ns0:rights>
+  </ns0:info>
+  
+--- en-US.xml ---
+<ns0:info xmlns:ns0="http://purl.org/net/xbiblio/csl">
+    <ns0:translator>
+      <ns0:name>Andrew Dunning</ns0:name>
+      <ns0:uri>https://orcid.org/0000-0003-0464-5036</ns0:uri>
+    </ns0:translator>
+    <ns0:translator>
+      <ns0:name>Sebastian Karcher</ns0:name>
+      <ns0:uri>https://orcid.org/0000-0001-8249-7388</ns0:uri>
+    </ns0:translator>
+    <ns0:translator>
+      <ns0:name>Rintze M. Zelle</ns0:name>
+      <ns0:uri>https://orcid.org/0000-0003-1779-8883</ns0:uri>
+    </ns0:translator>
+    <ns0:translator>
+      <ns0:name>Denis Meier</ns0:name>
+    </ns0:translator>
+    <ns0:translator>
+      <ns0:name>Brenton M. Wiernik</ns0:name>
+      <ns0:uri>https://orcid.org/0000-0001-9560-6336</ns0:uri>
+    </ns0:translator>
+    <ns0:rights license="http://creativecommons.org/licenses/by-sa/3.0/">This work is licensed under a Creative Commons Attribution-ShareAlike 3.0 License</ns0:rights>
+    <ns0:updated>2026-01-10T00:00:00+00:00</ns0:updated>
+  </ns0:info>
+  
+--- gbt-author-date.csl ---
+<ns0:info xmlns:ns0="http://purl.org/net/xbiblio/csl">
+    <ns0:title>China National Standard GB/T 7714-2015 (author-date, 中文)</ns0:title>
+    <ns0:id>http://www.zotero.org/styles/china-national-standard-gb-t-7714-2015-author-date</ns0:id>
+    <ns0:link href="http://www.zotero.org/styles/china-national-standard-gb-t-7714-2015-author-date" rel="self" />
+    <ns0:link href="http://www.zotero.org/styles/china-national-standard-gb-t-7714-2015-numeric" rel="template" />
+    <ns0:link href="https://std.samr.gov.cn/gb/search/gbDetailed?id=71F772D8055ED3A7E05397BE0A0AB82A" rel="documentation" />
+    <ns0:author>
+      <ns0:name>牛耕田</ns0:name>
+      <ns0:email>buffalo_d@163.com</ns0:email>
+    </ns0:author>
+    <ns0:contributor>
+      <ns0:name>Zeping Lee</ns0:name>
+      <ns0:email>zepinglee@gmail.com</ns0:email>
+    </ns0:contributor>
+    <ns0:category citation-format="author-date" />
+    <ns0:category field="generic-base" />
+    <ns0:summary>The Chinese GB/T 7714-2015 author-date style</ns0:summary>
+    <ns0:updated>2024-01-22T23:27:33+08:00</ns0:updated>
+    <ns0:rights license="http://creativecommons.org/licenses/by-sa/3.0/">This work is licensed under a Creative Commons Attribution-ShareAlike 3.0 License</ns0:rights>
+  </ns0:info>
+  
+--- gbt-numeric.csl ---
+<ns0:info xmlns:ns0="http://purl.org/net/xbiblio/csl">
+    <ns0:title>China National Standard GB/T 7714-2015 (numeric, 中文)</ns0:title>
+    <ns0:id>http://www.zotero.org/styles/china-national-standard-gb-t-7714-2015-numeric</ns0:id>
+    <ns0:link href="http://www.zotero.org/styles/china-national-standard-gb-t-7714-2015-numeric" rel="self" />
+    <ns0:link href="https://std.samr.gov.cn/gb/search/gbDetailed?id=71F772D8055ED3A7E05397BE0A0AB82A" rel="documentation" />
+    <ns0:author>
+      <ns0:name>牛耕田</ns0:name>
+      <ns0:email>buffalo_d@163.com</ns0:email>
+    </ns0:author>
+    <ns0:contributor>
+      <ns0:name>Zeping Lee</ns0:name>
+      <ns0:email>zepinglee@gmail.com</ns0:email>
+    </ns0:contributor>
+    <ns0:category citation-format="numeric" />
+    <ns0:category field="generic-base" />
+    <ns0:summary>The Chinese GB/T 7714-2015 numeric style</ns0:summary>
+    <ns0:updated>2024-01-22T22:07:03+08:00</ns0:updated>
+    <ns0:rights license="http://creativecommons.org/licenses/by-sa/3.0/">This work is licensed under a Creative Commons Attribution-ShareAlike 3.0 License</ns0:rights>
+  </ns0:info>
+  
+--- ieee.csl ---
+<ns0:info xmlns:ns0="http://purl.org/net/xbiblio/csl">
+    <ns0:title>IEEE Reference Guide version 11.29.2023</ns0:title>
+    <ns0:title-short>Institute of Electrical and Electronics Engineers</ns0:title-short>
+    <ns0:id>http://www.zotero.org/styles/ieee</ns0:id>
+    <ns0:link href="http://www.zotero.org/styles/ieee" rel="self" />
+    <ns0:link href="https://journals.ieeeauthorcenter.ieee.org/your-role-in-article-production/ieee-editorial-style-manual/" rel="documentation" />
+    <ns0:author>
+      <ns0:name>Michael Berkowitz</ns0:name>
+      <ns0:email>mberkowi@gmu.edu</ns0:email>
+    </ns0:author>
+    <ns0:contributor>
+      <ns0:name>Julian Onions</ns0:name>
+      <ns0:email>julian.onions@gmail.com</ns0:email>
+    </ns0:contributor>
+    <ns0:contributor>
+      <ns0:name>Rintze Zelle</ns0:name>
+      <ns0:uri>http://twitter.com/rintzezelle</ns0:uri>
+    </ns0:contributor>
+    <ns0:contributor>
+      <ns0:name>Stephen Frank</ns0:name>
+      <ns0:uri>http://www.zotero.org/sfrank</ns0:uri>
+    </ns0:contributor>
+    <ns0:contributor>
+      <ns0:name>Sebastian Karcher</ns0:name>
+    </ns0:contributor>
+    <ns0:contributor>
+      <ns0:name>Giuseppe Silano</ns0:name>
+      <ns0:email>g.silano89@gmail.com</ns0:email>
+      <ns0:uri>http://giuseppesilano.net</ns0:uri>
+    </ns0:contributor>
+    <ns0:contributor>
+      <ns0:name>Patrick O'Brien</ns0:name>
+    </ns0:contributor>
+    <ns0:contributor>
+      <ns0:name>Brenton M. Wiernik</ns0:name>
+    </ns0:contributor>
+    <ns0:contributor>
+      <ns0:name>Oliver Couch</ns0:name>
+      <ns0:email>oliver.couch@gmail.com</ns0:email>
+    </ns0:contributor>
+    <ns0:contributor>
+      <ns0:name>Andrew Dunning</ns0:name>
+      <ns0:uri>https://orcid.org/0000-0003-0464-5036</ns0:uri>
+    </ns0:contributor>
+    <ns0:category citation-format="numeric" />
+    <ns0:category field="engineering" />
+    <ns0:category field="generic-base" />
+    <ns0:summary>IEEE style as per the 2023 guidelines.</ns0:summary>
+    <ns0:updated>2024-03-27T11:41:27+00:00</ns0:updated>
+    <ns0:rights license="http://creativecommons.org/licenses/by-sa/3.0/">This work is licensed under a Creative Commons Attribution-ShareAlike 3.0 License</ns0:rights>
+  </ns0:info>
+  
+--- nature.csl ---
+<ns0:info xmlns:ns0="http://purl.org/net/xbiblio/csl">
+    <ns0:title>Nature</ns0:title>
+    <ns0:id>http://www.zotero.org/styles/nature</ns0:id>
+    <ns0:link href="http://www.zotero.org/styles/nature" rel="self" />
+    <ns0:link href="https://www.nature.com/nature/for-authors/formatting-guide" rel="documentation" />
+    <ns0:author>
+      <ns0:name>Michael Berkowitz</ns0:name>
+      <ns0:email>mberkowi@gmu.edu</ns0:email>
+    </ns0:author>
+    <ns0:contributor>
+      <ns0:name>Patrick O'Brien</ns0:name>
+      <ns0:email>citationstyler@gmail.com</ns0:email>
+    </ns0:contributor>
+    <ns0:category citation-format="numeric" />
+    <ns0:category field="science" />
+    <ns0:category field="generic-base" />
+    <ns0:issn>0028-0836</ns0:issn>
+    <ns0:eissn>1476-4687</ns0:eissn>
+    <ns0:updated>2025-09-10T18:26:21+00:00</ns0:updated>
+    <ns0:rights license="http://creativecommons.org/licenses/by-sa/3.0/">This work is licensed under a Creative Commons Attribution-ShareAlike 3.0 License</ns0:rights>
+  </ns0:info>
+  
+--- science.csl ---
+<ns0:info xmlns:ns0="http://purl.org/net/xbiblio/csl">
+    <ns0:title>Science</ns0:title>
+    <ns0:id>http://www.zotero.org/styles/science</ns0:id>
+    <ns0:link href="http://www.zotero.org/styles/science" rel="self" />
+    <ns0:link href="https://www.science.org/content/page/instructions-preparing-initial-manuscript#science-citation-style" rel="documentation" />
+    <ns0:author>
+      <ns0:name>Julian Onions</ns0:name>
+      <ns0:email>julian.onions@gmail.com</ns0:email>
+    </ns0:author>
+    <ns0:contributor>
+      <ns0:name>Sebastian Karcher</ns0:name>
+    </ns0:contributor>
+    <ns0:contributor>
+      <ns0:name>Greg Barendt</ns0:name>
+    </ns0:contributor>
+    <ns0:category citation-format="numeric" />
+    <ns0:category field="science" />
+    <ns0:issn>0036-8075</ns0:issn>
+    <ns0:eissn>1095-9203</ns0:eissn>
+    <ns0:summary>The Science journal style.</ns0:summary>
+    <ns0:updated>2019-07-02T08:06:38+00:00</ns0:updated>
+    <ns0:rights license="http://creativecommons.org/licenses/by-sa/3.0/">This work is licensed under a Creative Commons Attribution-ShareAlike 3.0 License</ns0:rights>
+  </ns0:info>
+  
+--- zh-CN.xml ---
+<ns0:info xmlns:ns0="http://purl.org/net/xbiblio/csl">
+    <ns0:translator>
+      <ns0:name>rongls</ns0:name>
+    </ns0:translator>
+    <ns0:translator>
+      <ns0:name>sati-bodhi</ns0:name>
+    </ns0:translator>
+    <ns0:translator>
+      <ns0:name>Heromyth</ns0:name>
+    </ns0:translator>
+    <ns0:translator>
+      <ns0:name>Zeping Lee</ns0:name>
+    </ns0:translator>
+    <ns0:translator>
+      <ns0:name>韩小土</ns0:name>
+    </ns0:translator>
+    <ns0:translator>
+      <ns0:name>韩敏义</ns0:name>
+    </ns0:translator>
+    <ns0:rights license="http://creativecommons.org/licenses/by-sa/3.0/">This work is licensed under a Creative Commons Attribution-ShareAlike 3.0 License</ns0:rights>
+    <ns0:updated>2025-10-16T11:24:00+08:00</ns0:updated>
+  </ns0:info>
+  

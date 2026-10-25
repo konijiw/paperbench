@@ -38,3 +38,4 @@ Desktop.ini
 
 # Generated citation integration fixtures and binaries
 tests/runtime/
+assets/csl-bundle.js

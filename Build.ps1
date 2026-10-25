@@ -12,6 +12,14 @@ $compiler = $compilerCandidates | Where-Object { Test-Path -LiteralPath $_ } | S
 if (-not $compiler) { throw '未找到 .NET Framework C# 编译器。' }
 
 $assets = Join-Path $projectDirectory 'assets'
+$cslDirectory = Join-Path $assets 'csl'
+$cslData = @{ styles = @{}; locales = @{}; licenses = @{} }
+Get-ChildItem -LiteralPath $cslDirectory -Filter '*.csl' | ForEach-Object { $cslData.styles[$_.BaseName] = [IO.File]::ReadAllText($_.FullName) }
+Get-ChildItem -LiteralPath $cslDirectory -Filter '*.xml' | ForEach-Object { $cslData.locales[$_.BaseName] = [IO.File]::ReadAllText($_.FullName) }
+Get-ChildItem -LiteralPath $cslDirectory -Filter '*.txt' | ForEach-Object { $cslData.licenses[$_.BaseName] = [IO.File]::ReadAllText($_.FullName) }
+# Keep the upstream processor unchanged; expose its CommonJS export to the browser.
+$cslBundle = "(function(){var module={exports:{}};`n" + [IO.File]::ReadAllText((Join-Path $cslDirectory 'citeproc.js')) + "`nwindow.CSL=module.exports;})();`nwindow.CitationStyleAssets=" + ($cslData | ConvertTo-Json -Depth 5 -Compress) + ';'
+[IO.File]::WriteAllText((Join-Path $assets 'csl-bundle.js'), $cslBundle, (New-Object Text.UTF8Encoding($false)))
 $output = if ($OutputPath) { $OutputPath } else { Join-Path $appDirectory '文献伴读.exe' }
 $source = Join-Path $projectDirectory 'MinerULibraryReview.cs'
 
@@ -35,6 +43,11 @@ $arguments = @(
     "/resource:$(Join-Path $assets 'app.css'),AppCss",
     "/resource:$(Join-Path $assets 'app.js'),AppJs",
     "/resource:$(Join-Path $assets 'citations.js'),CitationsJs",
+    "/resource:$(Join-Path $assets 'word-citations.js'),WordCitationsJs",
+    "/resource:$(Join-Path $assets 'paper-notes.js'),PaperNotesJs",
+    "/resource:$(Join-Path $assets 'material-export.js'),MaterialExportJs",
+    "/resource:$(Join-Path $assets 'pdf-import.js'),PdfImportJs",
+    "/resource:$(Join-Path $assets 'csl-bundle.js'),CslBundleJs",
     "/resource:$(Join-Path $assets 'marked.umd.js'),MarkedJs",
     "/resource:$(Join-Path $assets 'purify.min.js'),PurifyJs",
     "/resource:$(Join-Path $assets 'mathjax-config.js'),MathJaxConfigJs",
@@ -51,7 +64,10 @@ $arguments = @(
     (Join-Path $projectDirectory 'ReaderFeatures.cs'),
     (Join-Path $projectDirectory 'Citations.cs'),
     (Join-Path $projectDirectory 'CitationSearch.cs'),
-    (Join-Path $projectDirectory 'CitationRecognition.cs')
+    (Join-Path $projectDirectory 'CitationRecognition.cs'),
+    (Join-Path $projectDirectory 'MaterialExport.cs'),
+    (Join-Path $projectDirectory 'DesktopDialogs.cs')
+    (Join-Path $projectDirectory 'PaperRecycle.cs')
 )
 
 $fontDirectory = Join-Path $assets 'codex-sidebar\fonts'

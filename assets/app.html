@@ -37,7 +37,7 @@
       </div>
     </div>
     <div class="header-actions">
-      <button id="importPdfs" class="button secondary" type="button">导入论文 PDF</button>
+      <button id="importPdfs" class="button secondary" type="button" title="跨文件夹累计选取；也可把 PDF 拖到左侧论文库或页面空白处直接导入">导入论文 PDF</button>
       <input id="importPdfFiles" class="hidden" type="file" accept=".pdf,application/pdf" multiple>
       <button id="chooseRoot" class="button secondary">打开文件夹</button>
       <button id="refreshTree" class="button icon-button" title="刷新论文库" aria-label="刷新论文库">↻</button>
@@ -52,9 +52,14 @@
         <div class="explorer-heading-actions"><button id="showDuplicates" class="plain-text-button hidden">重复 <span id="duplicateCount">0</span></button><button id="manageTags" class="plain-text-button">标签管理</button><span id="paperCount" class="count-badge">0</span><button id="collapseExplorer" class="plain-icon" type="button" title="收起论文库" aria-label="收起论文库">‹</button></div>
       </div>
       <div id="libraryScope" class="library-scope" aria-label="论文范围">
-        <button data-scope="all" class="active">全部论文</button>
-        <button data-scope="favorites">收藏</button>
-        <button data-scope="recent">最近阅读</button>
+        <div class="scope-primary" role="group" aria-label="论文集合">
+          <button type="button" data-scope="all" class="active" aria-pressed="true"><svg viewBox="0 0 20 20" aria-hidden="true"><rect x="3" y="3" width="5" height="5" rx="1"/><rect x="12" y="3" width="5" height="5" rx="1"/><rect x="3" y="12" width="5" height="5" rx="1"/><rect x="12" y="12" width="5" height="5" rx="1"/></svg><span>全部论文</span></button>
+          <button type="button" data-scope="favorites" aria-pressed="false"><svg viewBox="0 0 20 20" aria-hidden="true"><path d="m10 2 2.5 5.1 5.6.8-4.1 4 1 5.6-5-2.6-5 2.6 1-5.6-4.1-4 5.6-.8Z"/></svg><span>收藏</span></button>
+        </div>
+        <div class="scope-shortcuts" role="group" aria-label="按时间查看">
+          <button type="button" data-scope="recent" aria-pressed="false"><svg viewBox="0 0 20 20" aria-hidden="true"><circle cx="10" cy="10" r="7"/><path d="M10 6v4l3 2"/></svg><span>最近阅读</span></button>
+          <button type="button" data-scope="added" aria-pressed="false" title="按入库时间从新到旧；旧论文按目录创建时间估计"><svg viewBox="0 0 20 20" aria-hidden="true"><path d="M10 2v10m-4-4 4 4 4-4M3 12v5h14v-5"/></svg><span>最新加入</span></button>
+        </div>
       </div>
       <div id="treeMode" class="tree-mode" aria-label="论文库显示方式">
         <button data-mode="files" class="active">文件目录</button>
@@ -73,6 +78,7 @@
       <nav id="fileTree" class="file-tree" aria-label="论文目录">
         <div class="tree-loading">正在扫描论文目录…</div>
       </nav>
+      <div class="library-export-entry"><button id="openMaterialExport" type="button" class="button secondary">导出阅读资料</button></div>
     </aside>
 
     <section class="workspace">
@@ -95,6 +101,7 @@
           </div>
           <button id="favoritePaper" class="button secondary" title="收藏当前论文">☆ 收藏</button>
           <button id="manageAttachments" class="button secondary attachment-trigger" type="button">附件</button>
+          <button id="recyclePaper" class="button secondary" type="button" title="将当前论文目录移至系统回收站">移至回收站</button>
         </div>
 
         <div class="reading-layout pdf-collapsed" id="readingLayout">
@@ -106,6 +113,7 @@
           <div id="readerDivider" class="reader-divider" title="拖动调整宽度"></div>
           <section class="markdown-pane" id="markdownPane">
             <div class="pane-label"><span>渲染 Markdown</span><span>可选择文字添加批注</span><button id="collapseMarkdown" class="plain-icon" title="折叠 Markdown" aria-label="折叠 Markdown">›</button></div>
+            <div id="markdownImageTools" class="markdown-image-tools hidden"><span id="selectedImageName">已选图片</span><button id="addImageToNote" type="button" class="button secondary" title="将图片加入整篇笔记：编辑时插入光标处，阅读时追加到文末">图片加入笔记</button><button id="clearSelectedImage" type="button" class="plain-icon" title="取消图片选择" aria-label="取消图片选择">×</button></div>
             <article id="markdownContent" class="markdown-content"><p class="loading-text">正在渲染…</p></article>
             <button id="markdownRail" class="markdown-rail" title="展开 Markdown" aria-label="展开 Markdown"><span>MD</span><span>‹</span></button>
           </section>
@@ -121,16 +129,31 @@
     </section>
 
     <aside id="notesPanel" class="notes-panel collapsed">
-      <div id="notesResizer" class="side-panel-resizer" title="拖动调整批注栏宽度"></div>
+      <div id="notesResizer" class="side-panel-resizer" title="拖动调整笔记栏宽度"></div>
       <button id="notesRail" class="notes-rail" type="button" title="展开批注栏" aria-label="展开批注栏"><span>批注</span><span>‹</span></button>
       <div class="notes-heading">
         <div><strong>阅读笔记</strong><small id="annotationCount">0 条文字批注</small></div>
-        <button id="closeNotes" class="plain-icon" title="收起批注栏" aria-label="收起批注栏">›</button>
+        <div class="notes-heading-actions"><button id="expandPaperNote" type="button" class="note-expand-button" aria-pressed="false" title="与论文并排展开笔记">并排展开</button><button id="closeNotes" class="plain-icon" title="收起批注栏" aria-label="收起批注栏">›</button></div>
       </div>
+      <div id="notesLayoutSwitch" class="notes-layout-switch" role="group" aria-label="笔记与批注的显示空间"><button type="button" data-notes-layout="balanced" aria-pressed="true" title="上下均衡分配空间">均衡</button><button type="button" data-notes-layout="notes" aria-pressed="false" title="给整篇论文笔记更多空间">笔记优先</button><button type="button" data-notes-layout="annotations" aria-pressed="false" title="给文字批注更多空间">批注优先</button></div>
       <section class="paper-note-section">
-        <label for="paperNote">整篇论文笔记</label>
-        <textarea id="paperNote" placeholder="记录论文要点、评价、疑问或后续工作…"></textarea>
+        <div class="paper-note-heading"><label for="paperNote">整篇论文笔记</label><div class="note-view-tabs" role="group" aria-label="笔记显示方式"><button id="readPaperNote" type="button" aria-pressed="true">阅读</button><button id="editPaperNote" type="button" aria-pressed="false">编辑</button></div></div>
+        <div id="paperNoteToolbar" class="paper-note-toolbar hidden" role="toolbar" aria-label="笔记格式工具">
+          <button type="button" data-note-format="heading" title="小标题">标题</button><button type="button" data-note-format="bold" title="加粗（Ctrl+B）"><b>加粗</b></button><button type="button" data-note-format="italic" title="斜体（Ctrl+I）"><i>斜体</i></button><button type="button" data-note-format="list" title="项目列表">列表</button><button type="button" data-note-format="quote" title="原文引用">引用</button><button type="button" data-note-format="task" title="待办事项">待办</button>
+        </div>
+        <div id="paperNotePreview" class="paper-note-preview" aria-label="整篇论文笔记" tabindex="0"></div>
+        <textarea id="paperNote" class="hidden" aria-label="编辑整篇论文笔记" placeholder="先写一句话也可以。记录论文要点、关键证据、疑问或对自己研究的启发…" spellcheck="false" disabled></textarea>
+        <div class="paper-note-footer"><button id="insertNoteTemplate" type="button" title="在笔记末尾补充尚未添加的小结标题，不覆盖原有内容">插入小结模板</button><span id="paperNoteSaveState" role="status" aria-live="polite">选择论文后开始记录</span></div>
       </section>
+      <form id="annotationEditor" class="annotation-editor hidden" novalidate aria-label="编辑文字批注">
+        <div class="annotation-editor-heading"><strong id="annotationEditorTitle">添加文字批注</strong><button id="closeAnnotationEditor" type="button" class="plain-icon" aria-label="取消本次批注" title="取消本次批注">×</button></div>
+        <div class="annotation-editor-source"><span>对应原文 · 已固定</span><button id="locateAnnotationDraft" type="button">定位原文</button></div>
+        <blockquote id="selectedQuote"></blockquote>
+        <label for="annotationText" class="annotation-editor-label">我的批注</label>
+        <textarea id="annotationText" placeholder="写下理解、疑问或评价；可以随时回到正文继续阅读和复制。" required></textarea>
+        <div id="annotationDraftStatus" class="annotation-draft-status" role="status" aria-live="polite">未保存草稿</div>
+        <div class="annotation-editor-actions"><button id="cancelAnnotationEditor" type="button" class="button secondary">取消</button><button id="confirmAnnotation" type="submit" class="button accent">保存批注</button></div>
+      </form>
       <div id="annotationListHeading" class="annotation-list-heading">文字批注</div>
       <div id="annotationList" class="annotation-list"></div>
     </aside>
@@ -147,21 +170,6 @@
       </div>
     </aside>
   </main>
-
-  <dialog id="annotationDialog" class="annotation-dialog">
-    <form method="dialog">
-      <div class="dialog-heading">
-        <strong id="dialogTitle">添加文字批注</strong>
-        <button value="cancel" class="plain-icon" aria-label="关闭">×</button>
-      </div>
-      <blockquote id="selectedQuote"></blockquote>
-      <textarea id="annotationText" placeholder="写下对这段内容的理解、疑问或评价…" required></textarea>
-      <div class="dialog-actions">
-        <button value="cancel" class="button secondary">取消</button>
-        <button id="confirmAnnotation" value="default" class="button accent">保存批注</button>
-      </div>
-    </form>
-  </dialog>
 
   <dialog id="metadataDialog" class="metadata-dialog">
     <form method="dialog">
@@ -242,6 +250,10 @@
   <script src="/assets/zcs/sidebar.js"></script>
   <script src="/assets/zcs/ai-chat.js"></script>
   <script src="/assets/citations.js"></script>
+  <script src="/assets/word-citations.js"></script>
+  <script src="/assets/paper-notes.js"></script>
+  <script src="/assets/material-export.js"></script>
+  <script src="/assets/pdf-import.js"></script>
   <script src="/assets/app.js"></script>
 </body>
 </html>

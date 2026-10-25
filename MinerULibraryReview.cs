@@ -182,13 +182,24 @@ internal static partial class MinerULibraryReview
                 else if (path.StartsWith("/assets/zcs/fonts/", StringComparison.Ordinal))
                     WriteResource(stream, "ZcsFont_" + Path.GetFileName(path), "font/woff2");
                 else if (path == "/assets/citations.js") WriteResource(stream, "CitationsJs", "application/javascript; charset=utf-8");
+                else if (path == "/assets/word-citations.js") WriteResource(stream, "WordCitationsJs", "application/javascript; charset=utf-8");
+                else if (path == "/assets/paper-notes.js") WriteResource(stream, "PaperNotesJs", "application/javascript; charset=utf-8");
+                else if (path == "/assets/material-export.js") WriteResource(stream, "MaterialExportJs", "application/javascript; charset=utf-8");
+                else if (path == "/assets/pdf-import.js") WriteResource(stream, "PdfImportJs", "application/javascript; charset=utf-8");
+                else if (path == "/assets/csl-bundle.js") WriteResource(stream, "CslBundleJs", "application/javascript; charset=utf-8");
                 else if (path == "/api/settings") WriteJson(stream, new { libraryRoot = LibraryRoot });
+                else if (path == "/api/material-export/papers") WriteJson(stream, ListMaterialExportPapers());
+                else if (path == "/api/material-export/start" && request.method == "POST") StartMaterialExport(stream, request.body);
+                else if (path == "/api/material-export/status") WriteJson(stream, MaterialExportStatus(query["id"]));
+                else if (path == "/api/material-export/open" && request.method == "POST") OpenMaterialExportFolder(stream, request.body);
                 else if (path == "/api/tree") WriteJson(stream, BuildTreeResponse());
                 else if (path == "/api/attachments/add" && request.method == "POST") AddAttachment(stream, request.body);
                 else if (path == "/api/attachments/link" && request.method == "POST") LinkParsedPaper(stream, request.body);
                 else if (path == "/api/attachments/remove" && request.method == "POST") RemoveAttachment(stream, request.body);
                 else if (path == "/api/attachments/open-folder" && request.method == "POST") OpenAttachmentFolder(stream, request.body);
                 else if (path == "/api/paper/open-folder" && request.method == "POST") OpenPaperFolder(stream, request.body);
+                else if (path == "/api/paper/recycle-preview" && request.method == "GET") WriteJson(stream, PreviewPaperRecycle(query["path"]));
+                else if (path == "/api/paper/recycle" && request.method == "POST") RecyclePaper(stream, request.body);
                 else if (path == "/api/attachments/zip-videos") WriteJson(stream, ListZipVideos(query["id"]));
                 else if (path == "/api/attachments/cache/clear" && request.method == "POST") ClearVideoCache(stream);
                 else if (path == "/api/duplicates/delete" && request.method == "POST") DeleteDuplicate(stream, request.body);
@@ -320,6 +331,9 @@ internal static partial class MinerULibraryReview
             node.tags = review.tags ?? new List<string>();
             node.favorite = review.favorite;
             node.lastOpenedAt = review.lastOpenedAt ?? "";
+            PaperAddedInfo added = ReadPaperAddedInfo(root, directory, true);
+            node.addedAt = added.addedAt;
+            node.addedTimeEstimated = added.estimated;
             return node;
         }
         if (depth >= 12) return node;
@@ -928,6 +942,8 @@ internal static partial class MinerULibraryReview
         public List<string> tags { get; set; }
         public bool favorite { get; set; }
         public string lastOpenedAt { get; set; }
+        public string addedAt { get; set; }
+        public bool addedTimeEstimated { get; set; }
         public List<TreeNode> children { get; set; }
     }
 

@@ -21,6 +21,56 @@ internal static partial class MinerULibraryReview
     private static readonly object AttachmentLock = new object();
     private static readonly object TitleCacheLock = new object();
     private static readonly object PdfImportLock = new object();
+    private static readonly Dictionary<string, string> CompletedPdfImports = new Dictionary<string, string>(StringComparer.Ordinal);
+    private sealed class PaperAddedInfo
+    {
+        public string addedAt { get; set; }
+        public bool estimated { get; set; }
+    }
+
+    private static string PaperAddedPath(string root, string directory)
+    {
+        string relative = MakeRelative(root, Path.GetFullPath(directory)).Replace('\\', '/').Trim('/').ToUpperInvariant();
+        if (relative == ".." || relative.StartsWith("../", StringComparison.Ordinal)) throw new InvalidOperationException("论文目录超出论文库。");
+        byte[] hash;
+        using (SHA256 sha = SHA256.Create()) hash = sha.ComputeHash(Encoding.UTF8.GetBytes("paper-added-v1\n" + relative));
+        return Path.Combine(StateDirectory, "paper-added", BitConverter.ToString(hash).Replace("-", "").ToLowerInvariant() + ".json");
+    }
+
+    private static PaperAddedInfo ReadPaperAddedInfo(string root, string directory, bool initialize)
+    {
+        string path = PaperAddedPath(root, directory);
+        lock (StateLock)
+        {
+            if (File.Exists(path))
+            {
+                try
+                {
+                    PaperAddedInfo saved = Json.Deserialize<PaperAddedInfo>(File.ReadAllText(path, Encoding.UTF8));
+                    DateTime value;
+                    if (saved != null && DateTime.TryParse(saved.addedAt, System.Globalization.CultureInfo.InvariantCulture, System.Globalization.DateTimeStyles.RoundtripKind, out value))
+                    { saved.addedAt = value.ToUniversalTime().ToString("o"); return saved; }
+                }
+                catch { }
+            }
+            DateTime created = Directory.GetCreationTimeUtc(directory);
+            if (created.Year < 1970 || created > DateTime.UtcNow.AddDays(1)) created = DateTime.UtcNow;
+            var info = new PaperAddedInfo { addedAt = created.ToString("o"), estimated = true };
+            // Freeze the best available legacy estimate in a separate index, never in review records.
+            if (initialize && !File.Exists(path)) try { AtomicWrite(path, Json.Serialize(info)); } catch (IOException) { } catch (UnauthorizedAccessException) { }
+            return info;
+        }
+    }
+
+    private static void RecordPaperAdded(string root, string directory)
+    {
+        try
+        {
+            lock (StateLock) AtomicWrite(PaperAddedPath(root, directory), Json.Serialize(new PaperAddedInfo { addedAt = DateTime.UtcNow.ToString("o"), estimated = false }));
+        }
+        catch (IOException) { }
+        catch (UnauthorizedAccessException) { }
+    }
     private static readonly Dictionary<string, PendingPdfImport> PendingPdfImports = new Dictionary<string, PendingPdfImport>(StringComparer.Ordinal);
     private static readonly Dictionary<string, ParsedTitleCacheEntry> ParsedTitleCache = new Dictionary<string, ParsedTitleCacheEntry>(StringComparer.OrdinalIgnoreCase);
 
@@ -126,6 +176,7 @@ internal static partial class MinerULibraryReview
         public string id { get; set; }
         public string name { get; set; }
         public long size { get; set; }
+        public string libraryRoot { get; set; }
     }
 
     private sealed class PendingPdfImport
@@ -146,6 +197,8 @@ internal static partial class MinerULibraryReview
             throw new InvalidDataException("请选择有效的 PDF 文件（不超过 8 GB）。");
         string root;
         lock (StateLock) root = LibraryRoot;
+        if (!String.IsNullOrEmpty(request.libraryRoot) && !String.Equals(Path.GetFullPath(request.libraryRoot), Path.GetFullPath(root), StringComparison.OrdinalIgnoreCase))
+            throw new InvalidOperationException("论文库已切换，本批文件未导入；请在当前论文库重新操作。");
         string id = Guid.NewGuid().ToString("N");
         string staging = Path.Combine(root, ".pdf-import-" + id);
         lock (PdfImportLock)
@@ -189,6 +242,9 @@ internal static partial class MinerULibraryReview
         lock (PdfImportLock)
         {
             PendingPdfImport pending;
+            string completedPath;
+            if (request != null && request.id != null && CompletedPdfImports.TryGetValue(request.id, out completedPath))
+            { WriteJson(stream, new { path = completedPath }); return; }
             if (request == null || request.id == null || !PendingPdfImports.TryGetValue(request.id, out pending) || pending.received != pending.size)
                 throw new InvalidDataException("PDF 尚未传输完成。");
             string source = Path.Combine(pending.staging, "source.pdf");
@@ -204,9 +260,13 @@ internal static partial class MinerULibraryReview
             for (int suffix = 2; Directory.Exists(destination) || File.Exists(destination); suffix++)
                 destination = Path.Combine(pending.root, name + " (" + suffix + ")");
             Directory.Move(pending.staging, destination);
+            string relativePath = MakeRelative(pending.root, destination);
+            CompletedPdfImports[request.id] = relativePath;
+            if (CompletedPdfImports.Count > 2000) CompletedPdfImports.Remove(CompletedPdfImports.Keys.First());
+            RecordPaperAdded(pending.root, destination);
             PendingPdfImports.Remove(request.id);
             Interlocked.Increment(ref LibraryRevision);
-            WriteJson(stream, new { path = MakeRelative(pending.root, destination) });
+            WriteJson(stream, new { path = relativePath });
         }
     }
 
@@ -257,7 +317,9 @@ internal static partial class MinerULibraryReview
 
     private static void HideLinkedPapers(TreeNode node, List<AttachmentLink> links)
     {
-        HashSet<string> linked = new HashSet<string>(links.Where(x => x.kind == "parsed").Select(x => x.path), StringComparer.OrdinalIgnoreCase);
+        // Keep links for restoring a recycled parent, but don't hide its surviving materials.
+        HashSet<string> present = new HashSet<string>(CollectPapers(node).Select(x => x.path), StringComparer.OrdinalIgnoreCase);
+        HashSet<string> linked = new HashSet<string>(links.Where(x => x.kind == "parsed" && present.Contains(x.parent)).Select(x => x.path), StringComparer.OrdinalIgnoreCase);
         HideLinkedPapersInto(node, linked);
     }
 
@@ -640,7 +702,8 @@ internal static partial class MinerULibraryReview
         try { if (File.Exists(PdfHashCachePath)) cache = Json.Deserialize<Dictionary<string, PdfHashCacheEntry>>(File.ReadAllText(PdfHashCachePath, Encoding.UTF8)); } catch { }
         if (cache == null) cache = new Dictionary<string, PdfHashCacheEntry>(StringComparer.OrdinalIgnoreCase);
         Dictionary<long, List<TreeNode>> sizes = new Dictionary<long, List<TreeNode>>();
-        foreach (TreeNode paper in papers.Where(x => x.hasMarkdown))
+        // PDF equality does not depend on whether Markdown has been generated.
+        foreach (TreeNode paper in papers)
         {
             try
             {
@@ -664,7 +727,7 @@ internal static partial class MinerULibraryReview
                 lock (StateLock) AiPreferences.TryGetValue("paperThreads", out threads);
                 bool hasChat = !String.IsNullOrEmpty(threads) && threads.IndexOf(ReviewKey(directory), StringComparison.OrdinalIgnoreCase) >= 0;
                 if (!groups.ContainsKey(hash)) groups[hash] = new List<object>();
-                groups[hash].Add(new { path = paper.path, name = paper.title == "" ? paper.name : paper.title, annotations = review.annotations == null ? 0 : review.annotations.Count, note = !String.IsNullOrWhiteSpace(review.note), chat = hasChat, attachments = links.Count(x => String.Equals(x.parent, paper.path, StringComparison.OrdinalIgnoreCase)), status = review.status, favorite = review.favorite, tags = review.tags == null ? 0 : review.tags.Count, size = new FileInfo(FindPdf(directory)).Length });
+                groups[hash].Add(new { path = paper.path, hasMarkdown = paper.hasMarkdown, name = paper.title == "" ? paper.name : paper.title, annotations = review.annotations == null ? 0 : review.annotations.Count, note = !String.IsNullOrWhiteSpace(review.note), chat = hasChat, attachments = links.Count(x => String.Equals(x.parent, paper.path, StringComparison.OrdinalIgnoreCase)), status = review.status, favorite = review.favorite, tags = review.tags == null ? 0 : review.tags.Count, size = new FileInfo(FindPdf(directory)).Length });
             }
             catch { }
         }
