@@ -29,7 +29,7 @@
 
   var els = {};
   ['libraryPath','chooseRoot','importPdfs','importPdfFiles','refreshTree','paperCount','manageTags','showDuplicates','duplicateCount','libraryScope','treeMode','treeSearch','statusFilters','fileTree','headerPaperActions','toggleExplorer','collapseExplorer','explorerRail','appShell','explorerPanel',
-   'emptyState','paperView','paperTitle','paperMeta','paperLocation','manageAttachments','pdfName','pdfFrame','markdownPane','attachmentViewer','attachmentViewerTitle','attachmentOpenFolder','attachmentFullscreen','attachmentVideoList','attachmentVideo','attachmentPdf',
+   'emptyState','paperView','paperTitle','paperMeta','paperLocation','manageAttachments','pdfName','pdfFrame','mineruParseBar','mineruParse','markdownPane','attachmentViewer','attachmentViewerTitle','attachmentOpenFolder','attachmentFullscreen','attachmentVideoList','attachmentVideo','attachmentPdf',
    'markdownContent','markdownImageTools','selectedImageName','addImageToNote','clearSelectedImage','readingLayout','readerDivider','togglePdf','collapsePdf','pdfRail','toggleMarkdown','collapseMarkdown','markdownRail','sendSelectionToAi','translateSelection','annotateSelection','toggleNotes','toggleAi','saveState',
    'notesPanel','notesLayoutSwitch','closeNotes','notesRail','annotationCount','paperNote','expandPaperNote','annotationListHeading','annotationList','annotationEditor',
    'annotationEditorTitle','annotationDraftStatus','closeAnnotationEditor','cancelAnnotationEditor','locateAnnotationDraft','selectedQuote','annotationText','confirmAnnotation','metadataDialog','editMetadata','customTitle','tagChips','availableTags','tagInput','addTag','saveMetadata','tagManagerDialog','tagManagerSummary','tagManagerSearch','tagManagerList','tagActionDialog','tagActionTitle','tagActionDescription','tagActionInput','tagSuggestions','confirmTagAction','favoritePaper','toast','aiPanel','aiRail','collapseAi','aiChatRoot','notesResizer','aiResizer','attachmentDialog','closeAttachmentDialog','attachmentAnchorHint','addAttachmentFile','linkParsedPaper','attachmentPaperPicker','attachmentPaperChoice','confirmParsedLink','attachmentList','duplicateDialog','closeDuplicateDialog','duplicateList'].forEach(function (id) {
@@ -497,8 +497,10 @@
       });
       if (!state.currentPaper.hasMarkdown) {
         els.markdownContent.innerHTML = '';
+        refreshLocalMinerU();
         return;
       }
+      els.mineruParseBar.classList.add('hidden');
       return renderMarkdown(token);
     }).then(function () {
       if (token !== state.loadToken || !state.currentPaper) return;
@@ -509,6 +511,24 @@
       els.paperTitle.textContent = '加载失败';
       els.markdownContent.innerHTML = '<p class="loading-text">' + escapeHtml(error.message) + '</p>';
     });
+  }
+
+  var mineruCompletedSeen = {};
+  function refreshLocalMinerU() {
+    var paper = state.currentPaper;
+    if (!paper || paper.hasMarkdown) { els.mineruParseBar.classList.add('hidden'); return; }
+    var path = paper.path;
+    els.mineruParseBar.classList.remove('hidden');
+    api('/api/local-mineru/status?paper=' + encodeURIComponent(path)).then(function (result) {
+      if (!state.currentPaper || state.currentPaper.path !== path || state.currentPaper.hasMarkdown) return;
+      els.mineruParse.dataset.available = result.available ? 'true' : 'false';
+      els.mineruParse.disabled = result.state === 'running' || result.state === 'completed' || (result.available && result.running >= result.capacity);
+      els.mineruParse.textContent = !result.available ? '选择 MinerU' : result.state === 'running' ? '解析中…' : result.state === 'failed' ? '重试解析' : result.state === 'completed' ? '解析完成' : '解析 PDF';
+      els.mineruParse.title = result.message || (!result.available ? '选择本机 MinerU 安装目录' : result.running >= result.capacity ? '已有两篇论文正在解析' : '使用本机 MinerU 解析当前 PDF');
+      if (result.state === 'completed') {
+        if (!mineruCompletedSeen[path]) { mineruCompletedSeen[path] = true; loadTree(true); }
+      }
+    }).catch(function (error) { els.mineruParse.title = '检测 MinerU 失败：' + error.message; showToast(error.message); });
   }
 
   function normalizeReview() {
@@ -1563,6 +1583,20 @@
     api('/api/paper/open-folder', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ path: state.currentPath }) })
       .catch(function (error) { showToast('打开论文目录失败：' + error.message); });
   });
+  els.mineruParse.addEventListener('click', function () {
+    if (!state.currentPaper || state.currentPaper.hasMarkdown) return;
+    if (els.mineruParse.dataset.available !== 'true') {
+      api('/api/local-mineru/select', { method: 'POST' }).then(refreshLocalMinerU)
+        .catch(function (error) { showToast(error.message); });
+      return;
+    }
+    var path = state.currentPaper.path;
+    delete mineruCompletedSeen[path];
+    els.mineruParse.disabled = true;
+    api('/api/local-mineru/start', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ paper: path }) })
+      .then(refreshLocalMinerU)
+      .catch(function (error) { showToast(error.message); refreshLocalMinerU(); });
+  });
   els.manageAttachments.addEventListener('click', openAttachmentDialog);
   var openPaperRecycle;
   // Both entry points share the same confirmation and recycling operation.
@@ -1754,4 +1788,7 @@
     if (state.currentPaper) window.LiteratureCitations.open(state.currentPath);
   });
   loadTree(false);
+  setInterval(function () {
+    if (state.currentPaper && !state.currentPaper.hasMarkdown && !document.hidden) refreshLocalMinerU();
+  }, 3000);
 })();

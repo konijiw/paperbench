@@ -12,6 +12,11 @@ https://github.com/Juris-M/citeproc-js
 Bundled unchanged under CPAL 1.0. The browser wrapper is in Build.ps1.
 Full license: CPAL.txt. Original source: assets/csl/citeproc.js.
 
+License texts added 2026-10-28 from the SPDX license-list-data repository:
+AGPL-3.0.txt: https://github.com/spdx/license-list-data/blob/main/text/AGPL-3.0-only.txt
+LICENSE-CC-BY-SA-3.0.txt: https://github.com/spdx/license-list-data/blob/main/text/CC-BY-SA-3.0.txt
+The processor is distributed here under CPAL; AGPL is retained as the upstream alternative.
+
 --- apa.csl ---
 <ns0:info xmlns:ns0="http://purl.org/net/xbiblio/csl">
     <ns0:title>APA Style 7th edition</ns0:title>
@@ -47,7 +52,7 @@ Full license: CPAL.txt. Original source: assets/csl/citeproc.js.
     <ns0:updated>2026-02-07T00:00:00+00:00</ns0:updated>
     <ns0:rights license="http://creativecommons.org/licenses/by-sa/3.0/">This work is licensed under a Creative Commons Attribution-ShareAlike 3.0 License</ns0:rights>
   </ns0:info>
-  
+
 --- en-US.xml ---
 <ns0:info xmlns:ns0="http://purl.org/net/xbiblio/csl">
     <ns0:translator>
@@ -72,7 +77,7 @@ Full license: CPAL.txt. Original source: assets/csl/citeproc.js.
     <ns0:rights license="http://creativecommons.org/licenses/by-sa/3.0/">This work is licensed under a Creative Commons Attribution-ShareAlike 3.0 License</ns0:rights>
     <ns0:updated>2026-01-10T00:00:00+00:00</ns0:updated>
   </ns0:info>
-  
+
 --- gbt-author-date.csl ---
 <ns0:info xmlns:ns0="http://purl.org/net/xbiblio/csl">
     <ns0:title>China National Standard GB/T 7714-2015 (author-date, 中文)</ns0:title>
@@ -94,7 +99,7 @@ Full license: CPAL.txt. Original source: assets/csl/citeproc.js.
     <ns0:updated>2024-01-22T23:27:33+08:00</ns0:updated>
     <ns0:rights license="http://creativecommons.org/licenses/by-sa/3.0/">This work is licensed under a Creative Commons Attribution-ShareAlike 3.0 License</ns0:rights>
   </ns0:info>
-  
+
 --- gbt-numeric.csl ---
 <ns0:info xmlns:ns0="http://purl.org/net/xbiblio/csl">
     <ns0:title>China National Standard GB/T 7714-2015 (numeric, 中文)</ns0:title>
@@ -115,7 +120,7 @@ Full license: CPAL.txt. Original source: assets/csl/citeproc.js.
     <ns0:updated>2024-01-22T22:07:03+08:00</ns0:updated>
     <ns0:rights license="http://creativecommons.org/licenses/by-sa/3.0/">This work is licensed under a Creative Commons Attribution-ShareAlike 3.0 License</ns0:rights>
   </ns0:info>
-  
+
 --- ieee.csl ---
 <ns0:info xmlns:ns0="http://purl.org/net/xbiblio/csl">
     <ns0:title>IEEE Reference Guide version 11.29.2023</ns0:title>
@@ -168,7 +173,7 @@ Full license: CPAL.txt. Original source: assets/csl/citeproc.js.
     <ns0:updated>2024-03-27T11:41:27+00:00</ns0:updated>
     <ns0:rights license="http://creativecommons.org/licenses/by-sa/3.0/">This work is licensed under a Creative Commons Attribution-ShareAlike 3.0 License</ns0:rights>
   </ns0:info>
-  
+
 --- nature.csl ---
 <ns0:info xmlns:ns0="http://purl.org/net/xbiblio/csl">
     <ns0:title>Nature</ns0:title>
@@ -191,7 +196,7 @@ Full license: CPAL.txt. Original source: assets/csl/citeproc.js.
     <ns0:updated>2025-09-10T18:26:21+00:00</ns0:updated>
     <ns0:rights license="http://creativecommons.org/licenses/by-sa/3.0/">This work is licensed under a Creative Commons Attribution-ShareAlike 3.0 License</ns0:rights>
   </ns0:info>
-  
+
 --- science.csl ---
 <ns0:info xmlns:ns0="http://purl.org/net/xbiblio/csl">
     <ns0:title>Science</ns0:title>
@@ -216,7 +221,7 @@ Full license: CPAL.txt. Original source: assets/csl/citeproc.js.
     <ns0:updated>2019-07-02T08:06:38+00:00</ns0:updated>
     <ns0:rights license="http://creativecommons.org/licenses/by-sa/3.0/">This work is licensed under a Creative Commons Attribution-ShareAlike 3.0 License</ns0:rights>
   </ns0:info>
-  
+
 --- zh-CN.xml ---
 <ns0:info xmlns:ns0="http://purl.org/net/xbiblio/csl">
     <ns0:translator>
@@ -240,4 +245,4 @@ Full license: CPAL.txt. Original source: assets/csl/citeproc.js.
     <ns0:rights license="http://creativecommons.org/licenses/by-sa/3.0/">This work is licensed under a Creative Commons Attribution-ShareAlike 3.0 License</ns0:rights>
     <ns0:updated>2025-10-16T11:24:00+08:00</ns0:updated>
   </ns0:info>
-  
+

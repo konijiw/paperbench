@@ -20,6 +20,18 @@
   const MAX_IMAGE_BYTES = 20 * 1024 * 1024;
   const MAX_SELECTION_ATTACHMENTS = 50;
   const THREAD_LIST_BATCH_SIZE = 40;
+  const INITIAL_PAPER_PRESETS = [
+    { id: "overview", title: "先看懂这篇", prompt: "请先快速浏览当前论文的标题、摘要、章节结构、结论和关键图表，给我一张暂定的阅读地图：研究的具体问题是什么，作者实际做了什么，用什么证据回答，主要发现是什么。用通俗中文说明，并指出接下来最该看哪两三处及原因。此时只建立全局认识；尚未核对的贡献或结果请标为作者说法，不急着下可信度结论。" },
+    { id: "background", title: "补齐背景", prompt: "结合我们正讨论的难点，只挑两三个真正妨碍理解这篇论文的前置概念。分别说明它是什么、在本文中承担什么作用，并给一个直观例子；最后把概念串回论文的研究问题。论文内容与外部补充要分清，只有确实需要查资料时才检索并给出处。" },
+    { id: "method", title: "讲透方法", prompt: "请像准备复现这项工作一样拆解核心方法：输入、输出、关键步骤、数据或信号怎样流动，各组件和关键公式为什么需要。结合最重要的流程图或公式举一个具体例子；区分作者真正新增的部分、沿用的已有技术和普通实现选择。论文没写清的参数或步骤请列为缺口，不要猜测。" },
+    { id: "results", title: "读懂图表与结果", prompt: "请先独立读当前讨论的图表；若未指定，就挑最能回答研究问题的两三项结果。说明坐标轴、单位、实验条件、样本或任务、比较基线与误差表示，然后说图表本身显示了什么。再对照作者的解释，指出哪些结论由数据直接支持，哪些还需要额外推断。看不到原图或数字时明确说明，不凭图注猜测。" },
+    { id: "essence", title: "实际做到了什么", prompt: "请暂时放下摘要和结论中的宣传性措辞，从方法、结果、关键图表及可用补充材料反推这篇论文真正做到了什么。先用一句话说它回答或解决了哪个具体问题；再按论文类型核对实际测试的任务、输入、场景、规模、条件、指标、基线、代价和依赖；理论或综述则核对推导前提、验证方式或文献覆盖范围。把‘作者声称’‘论文直接证明’‘合理但未验证的外推’分开，特别指出结论是否超出了测试条件。判断贡献究竟是新原理、新方法、已有方法的组合还是工程实现；只靠本文无法确认新颖性时标为待核实。最后把贡献改写成一句不夸张、也不抹杀成果的表述。重要判断给出章节或图表依据，缺少证据就说无法确定。" },
+    { id: "deep", title: "系统精读", prompt: "请基于论文和我们已讨论的内容，沿着‘原有认识与困难 → 研究问题 → 方法与假设 → 关键证据 → 有边界的结论’带我精读。先指出目前尚未弄清的环节，然后一次讲一个模块，优先读真正承担论证的图、表和公式；区分作者主张、直接证据与推断，遇到冲突时修正前面的理解。每个模块讲完留给我追问，等我说‘继续’再推进。" },
+    { id: "challenge", title: "质疑作者", prompt: "请挑这篇论文最重要、也最可能改变我判断的两三个主张来质疑。对每项主张找出支撑证据、关键假设、比较基线或对照、可能的其他解释，以及作者是否把结论推广到了未测试的条件。分别说清目前最强的证据和未解决的疑问，并提出一项能区分不同解释的补充实验或分析。缺乏证据不等于结论错误，不要为了挑错而挑错。" },
+    { id: "transfer", title: "对我的研究有什么启示", prompt: "请把这篇论文中值得迁移的东西拆成研究问题、核心思想、方法步骤和实验设计，而不只是笼统称赞创新。说明哪些可直接借鉴，哪些必须改造，迁移所需的条件与最小验证步骤是什么。如果我尚未说明研究目标，先给出一般性启发，再问我最关键的一个背景问题；不要编造我的课题或保证一定适用。" },
+    { id: "quiz", title: "考考我是否理解", prompt: "请根据我们实际读过的内容出三道由浅入深的问题，让我用自己的话说明研究问题、方法如何起作用，以及某个关键结果能证明什么、不能证明什么。先不要公布答案；等我回答后逐题反馈，并指向需要重看的章节或图表。不要考尚未讨论的细节。" },
+    { id: "notes", title: "整理学习笔记", prompt: "请把这篇论文和我们对话中已经弄清的内容整理为方便日后回看的中文学习笔记，直接输出在当前聊天区，不要创建或修改文件。用自己的话写清研究问题、作者实际完成的工作、方法逻辑、关键证据及其测试条件、结论的适用范围、仍存疑问和可迁移的启发。重要判断标注章节或图表；区分作者主张、直接证据与我们的推断，无法确认之处保留为待核查。" },
+  ];
   const SLASH_COMMANDS = [
     { name: "skills", descriptionID: "zotero-codex-command-skills", description: "Choose a skill" },
     { name: "approvals", descriptionID: "zotero-codex-command-approvals", description: "Adjust approvals and access" },
@@ -411,6 +423,10 @@
       this.statusRevision = 0;
       this.managingThreadID = "";
       this.contextMenuThreadID = "";
+      this.paperPresets = [];
+      this.paperPresetsLoaded = false;
+      this.paperPresetsLoadPromise = null;
+      this.paperPresetSaving = false;
       this.cleanupClient = this.client.subscribe((event) => this._handleClientEvent(event));
       this.mount();
     }
@@ -745,7 +761,13 @@
         createDocumentIcon(doc),
         createL10n(doc, "span", "zcs-context-mode-label", "zotero-codex-item", "Paper"),
       );
-      composerTools.append(contextAddButton, contextModeButton);
+      const presetButton = create(doc, "button", "zcs-composer-tool zcs-preset-trigger", "预设");
+      presetButton.type = "button";
+      presetButton.title = "在对话中使用或管理提示词预设";
+      presetButton.setAttribute("aria-label", "提示词预设");
+      presetButton.setAttribute("aria-haspopup", "dialog");
+      presetButton.setAttribute("aria-expanded", "false");
+      composerTools.append(contextAddButton, contextModeButton, presetButton);
       const modelTrigger = create(doc, "button", "zcs-model-trigger");
       modelTrigger.type = "button";
       modelTrigger.setAttribute("aria-haspopup", "dialog");
@@ -816,6 +838,55 @@
       const selections = create(doc, "div", "zcs-context-selections");
       contextPopover.append(imageOption, generateImageOption, contextOption, selections);
 
+      const presetPopover = create(doc, "section", "zcs-popover zcs-preset-popover");
+      presetPopover.hidden = true;
+      presetPopover.setAttribute("role", "dialog");
+      presetPopover.setAttribute("aria-label", "提示词预设");
+      const presetHeader = create(doc, "div", "zcs-preset-header");
+      presetHeader.append(create(doc, "strong", "", "提示词预设"));
+      const presetHeaderActions = create(doc, "div", "zcs-preset-header-actions");
+      const presetRefreshButton = create(doc, "button", "zcs-preset-refresh", "↻");
+      presetRefreshButton.type = "button";
+      presetRefreshButton.title = "重新读取同步后的预设";
+      presetRefreshButton.setAttribute("aria-label", "刷新预设");
+      const presetNewButton = create(doc, "button", "zcs-preset-new", "+ 新建");
+      presetNewButton.type = "button";
+      presetNewButton.disabled = true;
+      presetHeaderActions.append(presetRefreshButton, presetNewButton);
+      presetHeader.append(presetHeaderActions);
+      const presetNotice = create(doc, "div", "zcs-preset-notice");
+      presetNotice.hidden = true;
+      presetNotice.setAttribute("role", "status");
+      const presetSearch = create(doc, "input", "zcs-preset-search");
+      presetSearch.type = "search";
+      presetSearch.placeholder = "搜索预设";
+      presetSearch.setAttribute("aria-label", "搜索提示词预设");
+      const presetList = create(doc, "div", "zcs-preset-list");
+      const presetEditor = create(doc, "form", "zcs-preset-editor");
+      presetEditor.hidden = true;
+      const presetTitleInput = create(doc, "input", "zcs-preset-field");
+      presetTitleInput.type = "text";
+      presetTitleInput.maxLength = 32;
+      presetTitleInput.placeholder = "预设名称";
+      presetTitleInput.required = true;
+      const presetPromptInput = create(doc, "textarea", "zcs-preset-field zcs-preset-prompt");
+      presetPromptInput.maxLength = 4000;
+      presetPromptInput.placeholder = "输入提示词内容";
+      presetPromptInput.required = true;
+      const presetEditorActions = create(doc, "div", "zcs-preset-editor-actions");
+      const presetEditorError = create(doc, "div", "zcs-preset-error");
+      presetEditorError.hidden = true;
+      const presetDeleteButton = create(doc, "button", "zcs-preset-delete", "删除");
+      presetDeleteButton.type = "button";
+      const presetCancelButton = create(doc, "button", "zcs-preset-cancel", "取消");
+      presetCancelButton.type = "button";
+      const presetSaveButton = create(doc, "button", "zcs-preset-save", "保存");
+      presetSaveButton.type = "submit";
+      presetEditorActions.append(presetDeleteButton, presetCancelButton, presetSaveButton);
+      presetEditor.append(create(doc, "label", "", "名称"), presetTitleInput,
+        create(doc, "label", "", "提示词"), presetPromptInput, presetEditorError, presetEditorActions);
+      presetPopover.append(presetHeader, presetNotice, presetSearch, presetList, presetEditor);
+
       const modelPopover = create(doc, "section", "zcs-popover zcs-model-popover");
       modelPopover.hidden = true;
       modelPopover.setAttribute("role", "dialog");
@@ -869,6 +940,7 @@
         threadPopover,
         threadContextMenu,
         contextPopover,
+        presetPopover,
         modelPopover,
         permissionsCard,
         status,
@@ -904,6 +976,19 @@
         statusText,
         resizeHandle,
         contextPopover,
+        presetPopover,
+        presetButton,
+        presetNewButton,
+        presetSearch,
+        presetList,
+        presetRefreshButton,
+        presetNotice,
+        presetEditor,
+        presetTitleInput,
+        presetPromptInput,
+        presetEditorError,
+        presetDeleteButton,
+        presetCancelButton,
         contextAddButton,
         contextModeButton,
         imageOption,
@@ -960,6 +1045,13 @@
         },
         toggleSettings: () => this.openSettings(),
         toggleContextMenu: () => this.togglePopover("context"),
+        togglePresetMenu: () => this.togglePopover("presets"),
+        searchPresets: () => this.renderPaperPresetList(),
+        refreshPresets: () => void this.refreshPaperPresets(),
+        newPreset: () => this.openPaperPresetEditor(),
+        savePreset: (event) => void this.savePaperPreset(event),
+        cancelPreset: () => this.closePaperPresetEditor(),
+        deletePreset: () => void this.deletePaperPreset(),
         toggleModelMenu: () => this.togglePopover("model"),
         choiceToggle: (event) => this.toggleChoiceOptions(event.currentTarget.parentNode.dataset.choice),
         choiceKeydown: (event) => this.handleChoiceKeydown(event),
@@ -1078,6 +1170,13 @@
       moreButton.addEventListener("click", this.handlers.toggleSettings);
       contextAddButton.addEventListener("click", this.handlers.toggleContextMenu);
       contextModeButton.addEventListener("click", this.handlers.toggleContextMenu);
+      presetButton.addEventListener("click", this.handlers.togglePresetMenu);
+      presetSearch.addEventListener("input", this.handlers.searchPresets);
+      presetRefreshButton.addEventListener("click", this.handlers.refreshPresets);
+      presetNewButton.addEventListener("click", this.handlers.newPreset);
+      presetEditor.addEventListener("submit", this.handlers.savePreset);
+      presetCancelButton.addEventListener("click", this.handlers.cancelPreset);
+      presetDeleteButton.addEventListener("click", this.handlers.deletePreset);
       modelTrigger.addEventListener("click", this.handlers.toggleModelMenu);
       for (const choice of Object.values(choices)) {
         choice.button.addEventListener("click", this.handlers.choiceToggle);
@@ -1120,6 +1219,8 @@
       this.renderContextAttachment();
       this.updateComposerState();
       this.applyPermissions();
+      this.renderPaperPresetList();
+      void this.refreshPaperPresets();
       this.lockInitialShellHeight();
     }
 
@@ -1232,6 +1333,7 @@
       const pairs = [
         ["threads", this.elements.threadPopover, this.elements.threadButton],
         ["context", this.elements.contextPopover, this.elements.contextAddButton],
+        ["presets", this.elements.presetPopover, this.elements.presetButton],
         ["model", this.elements.modelPopover, this.elements.modelTrigger],
         ["permissions", this.elements.permissionsCard, this.elements.permissionsButton],
       ];
@@ -1247,6 +1349,7 @@
       const map = {
         threads: [this.elements.threadPopover, this.elements.threadButton],
         context: [this.elements.contextPopover, this.elements.contextAddButton],
+        presets: [this.elements.presetPopover, this.elements.presetButton],
         model: [this.elements.modelPopover, this.elements.modelTrigger],
         permissions: [this.elements.permissionsCard, this.elements.permissionsButton],
       };
@@ -1255,13 +1358,20 @@
       this.closePopovers(name);
       popover.hidden = !willOpen;
       trigger.setAttribute("aria-expanded", String(willOpen));
-      if (willOpen && ["context", "model", "permissions"].includes(name)) {
+      if (willOpen && ["context", "presets", "model", "permissions"].includes(name)) {
         const root = this.elements.root.getBoundingClientRect();
         const anchor = trigger.getBoundingClientRect();
         popover.style.bottom = `${Math.max(8, root.bottom - anchor.top + 8)}px`;
         popover.style.maxHeight = `${Math.max(80, anchor.top - root.top - 12)}px`;
       }
       if (name === "context") this.elements.contextModeButton.setAttribute("aria-expanded", String(willOpen));
+      if (willOpen && name === "presets") {
+        this.renderPaperPresetList();
+        if (this.elements.presetEditor.hidden) {
+          void this.refreshPaperPresets();
+          this.elements.presetSearch.focus();
+        }
+      }
       if (willOpen && name === "model") {
         this.renderModelControls();
         this.elements.modelChoice.focus();
@@ -1284,6 +1394,8 @@
         this.elements.threadContextMenu,
         this.elements.threadPopover,
         this.elements.contextPopover,
+        this.elements.presetPopover,
+        this.elements.presetButton,
         this.elements.modelPopover,
         this.elements.permissionsCard,
         this.elements.permissionsButton,
@@ -2511,6 +2623,212 @@
       this.manager.log(message, error);
     }
 
+    async requestPaperPresets(path, body) {
+      const response = await global.fetch(path, {
+        method: body ? "POST" : "GET",
+        cache: "no-store",
+        headers: body ? { "Content-Type": "application/json" } : undefined,
+        body: body ? JSON.stringify(body) : undefined,
+      });
+      const result = await response.json();
+      if (!response.ok) throw new Error(result.error || "无法保存或读取预设。");
+      return result;
+    }
+
+    applyPaperPresets(result) {
+      if (!Array.isArray(result.items)) throw new Error("预设列表无效。");
+      this.paperPresets = result.items;
+      this.paperPresetsLoaded = true;
+      this.elements.presetNotice.textContent = result.conflicts
+        ? "发现同步冲突副本，已保留在 prompts 文件夹中，请核对后处理。" : "";
+      this.elements.presetNotice.hidden = !result.conflicts;
+      this.renderPaperPresetList();
+      const suggestions = this.elements.transcript.querySelector(".zcs-suggestions");
+      if (suggestions) this.renderPaperPresetSuggestions(suggestions);
+    }
+
+    async refreshPaperPresets() {
+      if (this.paperPresetsLoadPromise) return this.paperPresetsLoadPromise;
+      if (!this.elements.presetEditor.hidden) return;
+      this.elements.presetRefreshButton.disabled = true;
+      this.paperPresetsLoadPromise = (async () => {
+        try {
+          let result = await this.requestPaperPresets("/api/ai/presets");
+          if (!result.initialized) {
+            let items = INITIAL_PAPER_PRESETS;
+            const legacy = this.manager.getPreference("paperPromptPresets");
+            if (typeof legacy === "string" && legacy.trim()) {
+              const parsed = JSON.parse(legacy);
+              items = Array.isArray(parsed) ? parsed : parsed?.items;
+              if (!Array.isArray(items)) throw new Error("旧预设无法读取，原数据已保留。");
+            }
+            result = await this.requestPaperPresets("/api/ai/presets/initialize", { items });
+          }
+          if (this.destroyed) return;
+          this.applyPaperPresets(result);
+          this.manager.setPreference("paperPromptPresets", "");
+        }
+        catch (error) {
+          if (this.destroyed) return;
+          this.elements.presetNotice.textContent = error.message;
+          this.elements.presetNotice.hidden = false;
+          this.renderPaperPresetList();
+        }
+        finally {
+          this.paperPresetsLoadPromise = null;
+          if (!this.destroyed) this.elements.presetRefreshButton.disabled = false;
+        }
+      })();
+      return this.paperPresetsLoadPromise;
+    }
+
+    insertPaperPreset(preset) {
+      const input = this.elements.input;
+      const existing = input.value.trim();
+      input.value = existing ? `${existing}\n\n${preset.prompt}` : preset.prompt;
+      this.closePopovers();
+      input.focus();
+      input.setSelectionRange(input.value.length, input.value.length);
+      this.resizeComposer();
+      this.updateComposerState();
+    }
+
+    renderPaperPresetList() {
+      const { presetList, presetSearch } = this.elements;
+      this.elements.presetNewButton.disabled = !this.paperPresetsLoaded;
+      const query = presetSearch.value.trim().toLocaleLowerCase();
+      presetList.replaceChildren();
+      for (const preset of this.paperPresets) {
+        if (query && !`${preset.title} ${preset.prompt}`.toLocaleLowerCase().includes(query)) continue;
+        const row = create(this.doc, "div", "zcs-preset-row");
+        const use = create(this.doc, "button", "zcs-preset-use");
+        use.type = "button";
+        use.title = "填入输入框，确认后发送";
+        use.append(create(this.doc, "span", "zcs-preset-title", preset.title),
+          create(this.doc, "span", "zcs-preset-preview", preset.prompt));
+        use.addEventListener("click", () => this.insertPaperPreset(preset));
+        const edit = create(this.doc, "button", "zcs-preset-edit", "编辑");
+        edit.type = "button";
+        edit.setAttribute("aria-label", `编辑${preset.title}`);
+        edit.addEventListener("click", () => this.openPaperPresetEditor(preset));
+        row.append(use, edit);
+        presetList.append(row);
+      }
+      if (!presetList.children.length) {
+        presetList.append(create(this.doc, "p", "zcs-preset-empty", !this.paperPresetsLoaded
+          ? "正在读取预设；读取失败时可点击右上角刷新。" : query ? "没有匹配的预设" : "还没有预设，点击“新建”添加。"));
+      }
+    }
+
+    renderPaperPresetSuggestions(container) {
+      container.replaceChildren();
+      for (const preset of this.paperPresets.slice(0, 4)) {
+        const button = create(this.doc, "button", "zcs-suggestion", preset.title);
+        button.type = "button";
+        button.addEventListener("click", () => this.insertPaperPreset(preset));
+        container.append(button);
+      }
+      if (this.paperPresets.length > 4) {
+        const more = create(this.doc, "button", "zcs-suggestion", "更多预设…");
+        more.type = "button";
+        more.addEventListener("click", () => this.togglePopover("presets"));
+        container.append(more);
+      }
+    }
+
+    openPaperPresetEditor(preset = null) {
+      const e = this.elements;
+      this.editingPresetId = preset?.id || "";
+      this.editingPresetRevision = preset?.revision || "";
+      e.presetTitleInput.value = preset?.title || "";
+      e.presetPromptInput.value = preset?.prompt || "";
+      e.presetEditorError.hidden = true;
+      e.presetDeleteButton.hidden = !preset;
+      e.presetSearch.hidden = true;
+      e.presetList.hidden = true;
+      e.presetNewButton.hidden = true;
+      e.presetRefreshButton.hidden = true;
+      e.presetEditor.hidden = false;
+      e.presetTitleInput.focus();
+    }
+
+    closePaperPresetEditor() {
+      const e = this.elements;
+      this.editingPresetId = "";
+      e.presetEditor.hidden = true;
+      e.presetSearch.hidden = false;
+      e.presetList.hidden = false;
+      e.presetNewButton.hidden = false;
+      e.presetRefreshButton.hidden = false;
+      this.renderPaperPresetList();
+      void this.refreshPaperPresets();
+      e.presetSearch.focus();
+    }
+
+    async savePaperPreset(event) {
+      event.preventDefault();
+      if (this.paperPresetSaving) return;
+      const e = this.elements;
+      const title = e.presetTitleInput.value.trim();
+      const prompt = e.presetPromptInput.value.trim();
+      const error = !title || !prompt ? "名称和提示词都不能为空。"
+        : this.paperPresets.some((item) => item.id !== this.editingPresetId && item.title === title)
+          ? "已有同名预设，请换一个名称。" : "";
+      e.presetEditorError.textContent = error;
+      e.presetEditorError.hidden = !error;
+      if (error) return;
+      this.paperPresetSaving = true;
+      e.presetEditor.querySelectorAll("button, input, textarea").forEach((control) => { control.disabled = true; });
+      try {
+        const result = await this.requestPaperPresets("/api/ai/presets/save", {
+          id: this.editingPresetId, revision: this.editingPresetRevision, title, prompt,
+        });
+        if (this.destroyed) return;
+        e.presetSearch.value = "";
+        this.applyPaperPresets(result);
+        this.closePaperPresetEditor();
+      }
+      catch (error) {
+        if (!this.destroyed) {
+          e.presetEditorError.textContent = error.message;
+          e.presetEditorError.hidden = false;
+        }
+      }
+      finally {
+        this.paperPresetSaving = false;
+        e.presetEditor.querySelectorAll("button, input, textarea").forEach((control) => { control.disabled = false; });
+      }
+    }
+
+    async deletePaperPreset() {
+      if (this.paperPresetSaving) return;
+      const index = this.paperPresets.findIndex((item) => item.id === this.editingPresetId);
+      if (index < 0) return;
+      const title = this.paperPresets[index].title;
+      if (!this.doc.defaultView.confirm(`删除预设“${title}”？`)) return;
+      const e = this.elements;
+      this.paperPresetSaving = true;
+      e.presetEditor.querySelectorAll("button, input, textarea").forEach((control) => { control.disabled = true; });
+      try {
+        const result = await this.requestPaperPresets("/api/ai/presets/save", {
+          id: this.editingPresetId, revision: this.editingPresetRevision, deleted: true,
+        });
+        if (this.destroyed) return;
+        this.applyPaperPresets(result);
+        this.closePaperPresetEditor();
+      }
+      catch (error) {
+        if (!this.destroyed) {
+          e.presetEditorError.textContent = error.message;
+          e.presetEditorError.hidden = false;
+        }
+      }
+      finally {
+        this.paperPresetSaving = false;
+        e.presetEditor.querySelectorAll("button, input, textarea").forEach((control) => { control.disabled = false; });
+      }
+    }
+
     renderTranscript(entries) {
       const transcript = this.elements.transcript;
       this.clearResponseScrollSpace();
@@ -2585,24 +2903,7 @@
           createL10n(this.doc, "div", "zcs-empty-title", "zotero-codex-start-reading", "Read with Codex"),
           createL10n(this.doc, "p", "zcs-empty-copy", "zotero-codex-start-reading-copy", "Ask about this paper, explore a method, or compare ideas."));
         const suggestions = create(this.doc, "div", "zcs-suggestions");
-        for (const [id, label, promptID, prompt] of [
-          ["zotero-codex-suggest-summary", "是否值得精读", "zotero-codex-prompt-summary", "请帮助我初读这篇论文：概括研究问题、主要工作、核心创新、关键结果和结论；指出最重要的证据与明显局限。最后给出‘值得精读／选择性阅读／暂可跳过’的建议和理由。如果能从论文确认发表期刊或会议及发表状态，可作为辅助依据；不能确认就明确说明。请标出判断所依据的章节或图表，避免只复述摘要。"],
-          ["zotero-codex-suggest-novelty", "创新点是否扎实", "zotero-codex-prompt-novelty", "这篇论文相对已有工作的具体新意是什么？区分真正的方法或发现、已有方法的组合，以及应用场景变化。分别说明作者的主张和论文实际提供的证据；无法从文中确认的比较不要猜测。"],
-          ["zotero-codex-suggest-evidence", "结果是否可信", "zotero-codex-prompt-evidence", "从审稿人的角度检查这篇论文的实验：基线、消融、评价指标、样本或任务覆盖是否足以支撑主要结论？列出最有说服力的结果，以及最值得警惕的两三个缺口，并指出对应位置。"],
-          ["zotero-codex-suggest-method", "逐步讲解方法", "zotero-codex-prompt-method", "请用中文逐步讲解这篇论文的方法：先说明输入、输出和整体流程，再解释关键步骤、公式及其作用，最后给出一个具体例子。对论文没有交代清楚的细节请明确指出，不要自行补全。"],
-        ]) {
-          const button = createL10n(this.doc, "button", "zcs-suggestion", id, label);
-          button.type = "button";
-          button.addEventListener("click", async () => {
-            const text = await formatValue(this.doc, promptID, null, prompt);
-            if (this.destroyed) return;
-            this.elements.input.value = text;
-            this.elements.input.focus();
-            this.resizeComposer();
-            this.updateComposerState();
-          });
-          suggestions.append(button);
-        }
+        this.renderPaperPresetSuggestions(suggestions);
         empty.append(suggestions);
       }
       if (title) empty.append(create(this.doc, "div", "zcs-empty-title", title));
@@ -3480,6 +3781,13 @@
       e.moreButton.removeEventListener("click", this.handlers.toggleSettings);
       e.contextAddButton.removeEventListener("click", this.handlers.toggleContextMenu);
       e.contextModeButton.removeEventListener("click", this.handlers.toggleContextMenu);
+      e.presetButton.removeEventListener("click", this.handlers.togglePresetMenu);
+      e.presetSearch.removeEventListener("input", this.handlers.searchPresets);
+      e.presetRefreshButton.removeEventListener("click", this.handlers.refreshPresets);
+      e.presetNewButton.removeEventListener("click", this.handlers.newPreset);
+      e.presetEditor.removeEventListener("submit", this.handlers.savePreset);
+      e.presetCancelButton.removeEventListener("click", this.handlers.cancelPreset);
+      e.presetDeleteButton.removeEventListener("click", this.handlers.deletePreset);
       e.modelTrigger.removeEventListener("click", this.handlers.toggleModelMenu);
       for (const choice of Object.values(e.choices)) {
         choice.button.removeEventListener("click", this.handlers.choiceToggle);

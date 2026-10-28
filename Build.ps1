@@ -17,10 +17,23 @@ $cslData = @{ styles = @{}; locales = @{}; licenses = @{} }
 Get-ChildItem -LiteralPath $cslDirectory -Filter '*.csl' | ForEach-Object { $cslData.styles[$_.BaseName] = [IO.File]::ReadAllText($_.FullName) }
 Get-ChildItem -LiteralPath $cslDirectory -Filter '*.xml' | ForEach-Object { $cslData.locales[$_.BaseName] = [IO.File]::ReadAllText($_.FullName) }
 Get-ChildItem -LiteralPath $cslDirectory -Filter '*.txt' | ForEach-Object { $cslData.licenses[$_.BaseName] = [IO.File]::ReadAllText($_.FullName) }
-# Keep the upstream processor unchanged; expose its CommonJS export to the browser.
-$cslBundle = "(function(){var module={exports:{}};`n" + [IO.File]::ReadAllText((Join-Path $cslDirectory 'citeproc.js')) + "`nwindow.CSL=module.exports;})();`nwindow.CitationStyleAssets=" + ($cslData | ConvertTo-Json -Depth 5 -Compress) + ';'
+# Keep the upstream processor unchanged; generated wrapper portions remain CPAL.
+$cslBundle = "/* citeproc-js browser wrapper by konijiw, 2026-10-28. Processor/wrapper: CPAL-1.0; CSL assets: CC BY-SA 3.0. See assets/csl/WRAPPER-CHANGES.md and THIRD_PARTY_NOTICES.md. */`n(function(){var module={exports:{}};`n" + [IO.File]::ReadAllText((Join-Path $cslDirectory 'citeproc.js')) + "`nwindow.CSL=module.exports;})();`nwindow.CitationStyleAssets=" + ($cslData | ConvertTo-Json -Depth 5 -Compress) + ';'
 [IO.File]::WriteAllText((Join-Path $assets 'csl-bundle.js'), $cslBundle, (New-Object Text.UTF8Encoding($false)))
-$output = if ($OutputPath) { $OutputPath } else { Join-Path $appDirectory '文献伴读.exe' }
+$noticeFiles = @(
+    (Join-Path $projectDirectory 'LICENSE'),
+    (Join-Path $projectDirectory 'THIRD_PARTY_NOTICES.md'),
+    (Join-Path $cslDirectory 'WRAPPER-CHANGES.md')
+)
+$noticeFiles += @(Get-ChildItem -LiteralPath $assets -Filter 'LICENSE*.txt' | Where-Object { $_.Name -ne 'license-notices.txt' } | Sort-Object Name | Select-Object -ExpandProperty FullName)
+$noticeFiles += @(Get-ChildItem -LiteralPath $cslDirectory -Filter '*.txt' | Sort-Object Name | Select-Object -ExpandProperty FullName)
+$noticeSections = @('PaperBench - licenses, copyright notices, and source availability. Source paths listed below are relative to this application''s local URL. See /third-party/citeproc.js, /assets/csl-bundle.js and /third-party/Build.ps1.')
+foreach ($noticeFile in $noticeFiles) {
+    $noticeName = $noticeFile.Substring($projectDirectory.Length + 1).Replace('\', '/')
+    $noticeSections += "===== $noticeName =====`n`n" + [IO.File]::ReadAllText($noticeFile)
+}
+[IO.File]::WriteAllText((Join-Path $assets 'license-notices.txt'), ($noticeSections -join "`n`n"), (New-Object Text.UTF8Encoding($false)))
+$output = if ($OutputPath) { $OutputPath } else { Join-Path $appDirectory 'PaperBench.exe' }
 $source = Join-Path $projectDirectory 'MinerULibraryReview.cs'
 
 $arguments = @(
@@ -47,7 +60,11 @@ $arguments = @(
     "/resource:$(Join-Path $assets 'paper-notes.js'),PaperNotesJs",
     "/resource:$(Join-Path $assets 'material-export.js'),MaterialExportJs",
     "/resource:$(Join-Path $assets 'pdf-import.js'),PdfImportJs",
+    "/resource:$(Join-Path $projectDirectory 'mineru_parse_helper.py'),MinerUParseHelper",
     "/resource:$(Join-Path $assets 'csl-bundle.js'),CslBundleJs",
+    "/resource:$(Join-Path $assets 'license-notices.txt'),LicenseNotices",
+    "/resource:$(Join-Path $cslDirectory 'citeproc.js'),CiteprocSource",
+    "/resource:$(Join-Path $projectDirectory 'Build.ps1'),BuildSource",
     "/resource:$(Join-Path $assets 'marked.umd.js'),MarkedJs",
     "/resource:$(Join-Path $assets 'purify.min.js'),PurifyJs",
     "/resource:$(Join-Path $assets 'mathjax-config.js'),MathJaxConfigJs",
@@ -68,6 +85,8 @@ $arguments = @(
     (Join-Path $projectDirectory 'MaterialExport.cs'),
     (Join-Path $projectDirectory 'DesktopDialogs.cs')
     (Join-Path $projectDirectory 'PaperRecycle.cs')
+    (Join-Path $projectDirectory 'LocalMinerU.cs')
+    (Join-Path $projectDirectory 'PromptPresets.cs')
 )
 
 $fontDirectory = Join-Path $assets 'codex-sidebar\fonts'

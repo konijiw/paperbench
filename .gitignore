@@ -4,6 +4,7 @@ attachments/
 output/
 papers/
 library/
+prompts/
 
 # Local settings and secrets
 .env
@@ -35,7 +36,12 @@ obj/
 Thumbs.db
 Desktop.ini
 .DS_Store
+.stfolder
+.stignore
+.stversions/
+*.sync-conflict-*
 
 # Generated citation integration fixtures and binaries
 tests/runtime/
 assets/csl-bundle.js
+assets/license-notices.txt

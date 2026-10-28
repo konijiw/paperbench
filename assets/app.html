@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1">
-  <title>文献伴读</title>
+  <title>PaperBench</title>
   <link rel="stylesheet" href="/assets/app.css">
   <link rel="stylesheet" href="/assets/zcs/katex.css">
   <link rel="stylesheet" href="/assets/zcs/style.css">
@@ -13,7 +13,7 @@
   <header class="app-header">
     <div class="brand">
       <span class="brand-mark">文</span>
-      <div><strong>文献伴读</strong><small id="libraryPath">正在读取论文库…</small></div>
+      <div><strong>PaperBench</strong><small id="libraryPath">正在读取论文库…</small></div>
     </div>
     <div class="header-controls">
       <button id="toggleExplorer" class="header-panel-toggle" type="button" title="收起论文库" aria-label="收起论文库" aria-pressed="true">目录</button>
@@ -78,7 +78,10 @@
       <nav id="fileTree" class="file-tree" aria-label="论文目录">
         <div class="tree-loading">正在扫描论文目录…</div>
       </nav>
-      <div class="library-export-entry"><button id="openMaterialExport" type="button" class="button secondary">导出阅读资料</button></div>
+      <div class="library-export-entry">
+        <button id="openMaterialExport" type="button" class="button secondary">导出阅读资料</button>
+        <p class="third-party-credit"><a href="/licenses" target="_blank" rel="noopener noreferrer">开源声明</a><span>© Frank Bennett · <a href="https://citationstyles.org/" target="_blank" rel="noopener noreferrer">citeproc-js implements the Citation Style Language</a></span></p>
+      </div>
     </aside>
 
     <section class="workspace">
@@ -108,6 +111,7 @@
           <section class="pdf-pane">
             <div class="pane-label"><span>原始 PDF</span><span id="pdfName"></span><button id="collapsePdf" class="plain-icon" title="折叠 PDF">‹</button></div>
             <iframe id="pdfFrame" title="原始 PDF"></iframe>
+            <div id="mineruParseBar" class="mineru-parse-bar hidden"><button id="mineruParse" class="button accent" type="button" title="使用本机 MinerU 解析当前 PDF">解析 PDF</button></div>
             <button id="pdfRail" class="pdf-rail" title="展开原始 PDF"><span>PDF</span><span>›</span></button>
           </section>
           <div id="readerDivider" class="reader-divider" title="拖动调整宽度"></div>

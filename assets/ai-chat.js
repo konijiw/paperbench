@@ -33,16 +33,23 @@
     return parsePreference(raw);
   };
   const setPreference = (key, value) => {
+    if (key === "paperPromptPresets") {
+      // Only used to clear the old browser copy after migration to prompts/.
+      delete persistentPreferences[key];
+      localStorage.removeItem(keyPrefix + key);
+      return;
+    }
     const text = String(value);
     persistentPreferences[key] = text;
     localStorage.setItem(keyPrefix + key, text);
-    void fetch("/api/ai/preferences", {
+    const save = () => fetch("/api/ai/preferences", {
       method: "POST",
       cache: "no-store",
       keepalive: true,
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ preferences: { [key]: text } }),
-    }).catch(error => log("保存 Codex 对话设置失败", error));
+    });
+    void save().catch(error => log("保存 Codex 对话设置失败", error));
   };
   const log = (message, error) => console.warn(message, error || "");
 

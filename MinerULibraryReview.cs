@@ -68,11 +68,12 @@ internal static partial class MinerULibraryReview
         catch (Exception ex)
         {
             try { Directory.CreateDirectory(StateDirectory); File.AppendAllText(Path.Combine(StateDirectory, "error.log"), DateTime.UtcNow.ToString("o") + " " + ex + Environment.NewLine); } catch { }
-            MessageBox.Show(ex.Message, "文献伴读", MessageBoxButtons.OK, MessageBoxIcon.Error);
+            MessageBox.Show(ex.Message, "PaperBench", MessageBoxButtons.OK, MessageBoxIcon.Error);
         }
         finally
         {
             Stopping = true;
+            StopOwnedMinerUIfIdle();
             if (Codex != null) try { Codex.Dispose(); } catch { }
             if (LibraryWatcher != null) try { LibraryWatcher.Dispose(); } catch { }
             if (AttachmentRecordsWatcher != null) try { AttachmentRecordsWatcher.Dispose(); } catch { }
@@ -165,6 +166,9 @@ internal static partial class MinerULibraryReview
                 var query = HttpUtility.ParseQueryString(uri.Query);
 
                 if (path == "/") WriteResource(stream, "AppHtml", "text/html; charset=utf-8");
+                else if (path == "/licenses") WriteResource(stream, "LicenseNotices", "text/plain; charset=utf-8");
+                else if (path == "/third-party/citeproc.js") WriteResource(stream, "CiteprocSource", "text/plain; charset=utf-8");
+                else if (path == "/third-party/Build.ps1") WriteResource(stream, "BuildSource", "text/plain; charset=utf-8");
                 else if (path == "/assets/app.css") WriteResource(stream, "AppCss", "text/css; charset=utf-8");
                 else if (path == "/assets/app.js") WriteResource(stream, "AppJs", "application/javascript; charset=utf-8");
                 else if (path == "/assets/marked.js") WriteResource(stream, "MarkedJs", "application/javascript; charset=utf-8");
@@ -193,6 +197,9 @@ internal static partial class MinerULibraryReview
                 else if (path == "/api/material-export/status") WriteJson(stream, MaterialExportStatus(query["id"]));
                 else if (path == "/api/material-export/open" && request.method == "POST") OpenMaterialExportFolder(stream, request.body);
                 else if (path == "/api/tree") WriteJson(stream, BuildTreeResponse());
+                else if (path == "/api/local-mineru/status") LocalMinerUStatus(stream, query["paper"]);
+                else if (path == "/api/local-mineru/select" && request.method == "POST") SelectLocalMinerU(stream);
+                else if (path == "/api/local-mineru/start" && request.method == "POST") StartLocalMinerU(stream, request.body);
                 else if (path == "/api/attachments/add" && request.method == "POST") AddAttachment(stream, request.body);
                 else if (path == "/api/attachments/link" && request.method == "POST") LinkParsedPaper(stream, request.body);
                 else if (path == "/api/attachments/remove" && request.method == "POST") RemoveAttachment(stream, request.body);
@@ -225,6 +232,9 @@ internal static partial class MinerULibraryReview
                 else if (path == "/api/ai/connect") WriteJson(stream, GetCodex().ConnectInfo());
                 else if (path == "/api/ai/preferences" && request.method == "GET") WriteJson(stream, GetAiPreferences());
                 else if (path == "/api/ai/preferences" && request.method == "POST") SaveAiPreferences(stream, request.body);
+                else if (path == "/api/ai/presets" && request.method == "GET") WriteJson(stream, GetPaperPromptPresets());
+                else if (path == "/api/ai/presets/initialize" && request.method == "POST") InitializePaperPromptPresets(stream, request.body);
+                else if (path == "/api/ai/presets/save" && request.method == "POST") SavePaperPromptPreset(stream, request.body);
                 else if (path == "/api/ai/rpc" && request.method == "POST") HandleCodexRpc(stream, request.body);
                 else if (path == "/api/ai/respond" && request.method == "POST") HandleCodexResponse(stream, request.body);
                 else if (path == "/api/ai/events") WriteJson(stream, GetCodex().ReadEvents(ParseLong(query["after"]), 10000));
@@ -1068,7 +1078,7 @@ internal static partial class MinerULibraryReview
             }
             object initialized = RequestCore("initialize", new Dictionary<string, object>
             {
-                { "clientInfo", new Dictionary<string, object> { { "name", "ai-literature-reader" }, { "title", "文献伴读" }, { "version", "1.0.0" } } },
+                { "clientInfo", new Dictionary<string, object> { { "name", "ai-literature-reader" }, { "title", "PaperBench" }, { "version", "1.0.0" } } },
                 { "capabilities", new Dictionary<string, object> { { "experimentalApi", true } } }
             }, 30000);
             Send(new Dictionary<string, object> { { "method", "initialized" }, { "params", new Dictionary<string, object>() } });
