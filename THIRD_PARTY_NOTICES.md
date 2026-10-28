@@ -50,7 +50,7 @@ provide them without a network download:
 - `/licenses`: PaperBench's MIT License, these notices, wrapper change record,
   and bundled third-party copyright and license texts.
 
-Repository source: https://github.com/konijiw/ai-literature-reader.
+Repository source: https://github.com/konijiw/paperbench.
 Redistributors must preserve CPAL notices, attribution, and applicable source
 availability obligations. An MIT license for the surrounding application does
 not waive them.

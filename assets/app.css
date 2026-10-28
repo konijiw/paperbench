@@ -119,7 +119,7 @@
 .reading-layout.pdf-only .reader-divider,.reading-layout.pdf-only .markdown-pane{display:none}
 .reading-layout.pdf-only #collapsePdf{display:none}
 .pdf-pane{position:relative}.mineru-parse-bar{position:absolute;z-index:5;right:46px;bottom:12px}.mineru-parse-bar .button{box-shadow:0 3px 12px #23364d35;white-space:nowrap}.reading-layout:not(.pdf-only) .mineru-parse-bar{display:none}
-.third-party-credit{display:flex;flex-direction:column;gap:3px;margin:0;font-size:10px;line-height:1.45;color:var(--muted);overflow-wrap:anywhere}.third-party-credit a{color:inherit;text-decoration:underline;text-underline-offset:2px}
+.header-actions{align-items:center}.third-party-credit{display:flex;flex:0 0 190px;flex-direction:column;gap:2px;width:190px;margin:0 4px 0 0;font-size:10px;line-height:1.35;color:#d5deeb;white-space:normal;overflow-wrap:anywhere}.third-party-credit a{color:inherit;text-decoration:underline;text-underline-offset:2px}.third-party-credit a:hover{color:#fff}.third-party-credit a:focus-visible{outline:2px solid #b8d4ff;outline-offset:2px}
 .paper-toolbar{height:auto;min-height:44px;flex-wrap:wrap;gap:6px 10px;padding:6px 18px}
 .paper-toolbar .paper-identity{flex:1 1 180px;min-width:110px}
 .paper-toolbar .reading-status{order:0;flex:none}

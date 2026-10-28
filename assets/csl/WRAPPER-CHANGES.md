@@ -17,7 +17,7 @@ The engine's copyright header remains in the generated JavaScript. No processor
 logic has been changed. CSL styles and locales retain CC BY-SA 3.0 and their
 individual credits; they are not relicensed under CPAL or PaperBench's MIT License.
 
-The runtime attribution is displayed in the library footer and the Word
+The runtime attribution is displayed in the main header (beside PDF import) and the Word
 reference section. The application exposes its full licenses and the exact
 readable citation JavaScript through its local `/licenses` and
 `/assets/csl-bundle.js` paths, respectively.

@@ -147,6 +147,6 @@ PaperBench 的原创代码采用 [MIT 许可证](LICENSE)，Copyright (c) 2026 k
 | [MathJax](https://github.com/mathjax/Mathjax) | 数学公式渲染 | Apache-2.0 |
 | [DOMPurify](https://github.com/cure53/DOMPurify) | HTML 内容清理 | 本项目按 Apache-2.0 使用 |
 
-完整的改编范围、第三方版权、许可证及引用排版源码获取方式，见 [第三方声明](THIRD_PARTY_NOTICES.md)。运行程序后也可从左侧底部的“开源声明”查看。
+完整的改编范围、第三方版权、许可证及引用排版源码获取方式，见 [第三方声明](THIRD_PARTY_NOTICES.md)。运行程序后也可从右上角“导入论文 PDF”左侧的“开源声明”查看。
 
 MinerU、Codex CLI 和可选的 PDF 提取工具是外部依赖，不包含在本仓库中，分别适用其自身许可与服务条款。用户导入的论文、附件和个人数据不适用 PaperBench 的 MIT 许可证。
