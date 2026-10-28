@@ -6,6 +6,8 @@
 
 **推荐搭配 [MinerU](https://github.com/opendatalab/MinerU) 使用：** 将 PDF 解析为 Markdown 和图片后，可以一边核对原文，一边选中文字批注、翻译和讨论。没有 MinerU 时，也能直接导入 PDF 开始阅读。
 
+**下载 Windows 版：** [PaperBench.exe](https://github.com/konijiw/paperbench/releases/latest/download/PaperBench.exe) · [便携 ZIP 包](https://github.com/konijiw/paperbench/releases/latest/download/PaperBench-Windows.zip) · [版本说明](https://github.com/konijiw/paperbench/releases/latest)
+
 ## 可以做什么
 
 - **对照阅读：** PDF 与 MinerU 解析正文并排显示，阅读区域可调整、折叠。
@@ -24,7 +26,9 @@
 
 运行 `PaperBench.exe`，程序会启动本机服务，并在默认浏览器中打开阅读界面。
 
-本仓库提供源代码；如果你还没有运行文件，请先按下方的 [从源码构建](#从源码构建) 生成 EXE。
+从上方下载 EXE，放入可写的普通文件夹（例如 `D:\PaperBench`）后运行；也可以下载便携 ZIP 包，解压后运行其中的 EXE。无需下载源码或安装 Python 即可使用基础阅读功能。程序会在自身目录旁保存配置和阅读数据，请勿直接在压缩包内运行。
+
+AI 对话需另行安装并登录 Codex CLI；PDF 解析需另行安装 MinerU；自动从 PDF 提取引用信息需配置 `pdftotext`。这些是可选功能，不影响直接导入 PDF 阅读。开发者也可按下方的 [从源码构建](#从源码构建) 生成 EXE。
 
 ### 2. 选择论文库
 
