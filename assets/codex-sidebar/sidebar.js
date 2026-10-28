@@ -373,7 +373,10 @@
   }
 
   function appendMarkdown(doc, parent, value) {
-    Markdown.appendMarkdown(doc, parent, value, { openTarget: openMarkdownTarget });
+    Markdown.appendMarkdown(doc, parent, value, {
+      openTarget: openMarkdownTarget,
+      interceptExternalLinks: typeof global.Zotero?.launchURL === "function",
+    });
   }
 
   class SidebarView {

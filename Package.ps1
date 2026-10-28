@@ -1,6 +1,6 @@
-﻿param([string]$Version = 'v0.1.1')
+﻿param([string]$Version = 'v0.1.2')
 $ErrorActionPreference = 'Stop'
-if ($Version -notmatch '^v\d+\.\d+\.\d+(?:-[a-zA-Z0-9.]+)?$') { throw '版本号格式应为 v0.1.1。' }
+if ($Version -notmatch '^v\d+\.\d+\.\d+(?:-[a-zA-Z0-9.]+)?$') { throw '版本号格式应为 v0.1.2。' }
 $project = Split-Path -Parent $MyInvocation.MyCommand.Path
 $output = Join-Path $project "dist\$Version"
 $package = Join-Path $output 'PaperBench'

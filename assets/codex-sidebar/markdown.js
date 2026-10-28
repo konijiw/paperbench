@@ -870,14 +870,23 @@
       }
       else if (token.type === "link") {
         const link = create(doc, "a", "zcs-link");
-        const target = String(token.target || "");
-        link.href = /^https?:\/\//iu.test(target) ? target : "#";
+        const target = String(token.target || "").trim();
+        const external = /^https?:\/\//iu.test(target);
+        link.href = external ? target : "#";
+        if (external) {
+          link.target = "_blank";
+          link.rel = "noopener noreferrer";
+        }
         link.title = token.title || target;
         if (target.startsWith("/") || /^file:\/\//iu.test(target)) link.classList.add("zcs-local-link");
-        link.addEventListener("click", (event) => {
-          event.preventDefault();
-          options.openTarget?.(target);
-        });
+        // A browser should follow real web links itself, including Ctrl/middle-click and Enter.
+        // Only desktop hosts with a URL launcher need interception of external links.
+        if (!external || options.interceptExternalLinks) {
+          link.addEventListener("click", (event) => {
+            event.preventDefault();
+            options.openTarget?.(target);
+          });
+        }
         appendInlineTokens(doc, link, token.children, options);
         parent.append(link);
       }

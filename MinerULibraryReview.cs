@@ -1049,6 +1049,14 @@ internal static partial class MinerULibraryReview
             return result;
         }
 
+        public object ReadHistory(string method, object parameters)
+        {
+            if (method != "thread/list" && method != "thread/read" && method != "thread/turns/list")
+                throw new InvalidOperationException("历史导出只允许读取对话。");
+            EnsureStarted();
+            return RequestCore(method, parameters ?? new Dictionary<string, object>(), 20000);
+        }
+
         public object ReadEvents(long after, int waitMilliseconds)
         {
             EnsureStarted();

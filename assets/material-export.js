@@ -82,7 +82,7 @@
     setBusy(true); $('materialOpenFolder').classList.add('hidden'); $('materialWarnings').textContent = ''; $('materialProgress').classList.add('hidden');
     status('请选择导出位置，程序会在其中新建资料文件夹。不会覆盖已有目录。');
     try {
-      var result = await api('/api/material-export/start', { rootKey: rootKey, papers: Array.from(selected), name: $('materialName').value.trim() || '阅读资料', current: current });
+      var result = await api('/api/material-export/start', { rootKey: rootKey, papers: Array.from(selected), name: $('materialName').value.trim() || '阅读资料', current: current, includeChats: $('materialIncludeChats').checked });
       if (result.cancelled) { setBusy(false); status('已取消选择位置，未开始导出。'); return; }
       jobId = result.id; $('materialProgress').classList.remove('hidden'); $('materialProgress').value = 0;
       poll(jobId, token);
@@ -91,8 +91,9 @@
   function init() {
     dialog = document.createElement('dialog'); dialog.className = 'material-export-dialog'; dialog.setAttribute('aria-label', '导出阅读资料');
     dialog.innerHTML = '<div class="material-export-heading"><div><strong>导出阅读资料</strong><small>给外部 AI 工作区、调研与写作使用</small></div><button id="materialClose" class="plain-icon" type="button" aria-label="关闭">×</button></div>' +
-      '<div class="material-export-body"><p class="attachment-hint">只读原资料，始终新建副本。包含 PDF、已有 Markdown 与相关图片、整篇笔记、已保存批注/译文、阅读记录及已有引用；不会自动打包 AI 聊天、未保存批注草稿、视频、ZIP 或未选择的关联材料。</p>' +
+      '<div class="material-export-body"><p class="attachment-hint">只读原资料，始终新建副本。包含 PDF、已有 Markdown 与相关图片、整篇笔记、已保存批注/译文、阅读记录及已有引用；AI 对话可选导出，未保存批注草稿、视频、ZIP 或未选择的关联材料不自动打包。</p>' +
       '<label class="material-name">资料包名称<input id="materialName" data-export-control maxlength="80" placeholder="例如：灵巧手触觉调研" value="阅读资料"></label>' +
+      '<label class="material-chat-option"><input id="materialIncludeChats" data-export-control type="checkbox"><span><strong>包含关联 AI 对话</strong><small>按论文目录与已保存关联读取本机 Codex 历史，生成可独立阅读的 Markdown；不发送消息，缺失历史不影响其他资料导出。</small></span></label>' +
       '<div class="material-export-tools"><select id="materialTag" data-export-control aria-label="按标签追加勾选"><option value="">选择标签，追加勾选相关论文</option></select><button id="materialRefresh" data-export-control type="button" class="button secondary">刷新列表</button></div>' +
       '<input id="materialSearch" data-export-control type="search" class="material-search" placeholder="搜索标题、标签或目录；搜索不清空已有勾选" aria-label="搜索待导出的论文">' +
       '<div class="material-export-select"><span id="materialCount"></span><button id="materialSelectVisible" data-export-control type="button">勾选当前列表</button><button id="materialClear" data-export-control type="button">清空勾选</button></div>' +
