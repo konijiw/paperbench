@@ -6,13 +6,13 @@
 
 **推荐搭配 [MinerU](https://github.com/opendatalab/MinerU) 使用：** 将 PDF 解析为 Markdown 和图片后，可以一边核对原文，一边选中文字批注、翻译和讨论。没有 MinerU 时，也能直接导入 PDF 开始阅读。
 
-**下载 Windows 版：** [PaperBench.exe](https://github.com/konijiw/paperbench/releases/latest/download/PaperBench.exe) · [便携 ZIP 包](https://github.com/konijiw/paperbench/releases/latest/download/PaperBench-Windows.zip) · [版本说明](https://github.com/konijiw/paperbench/releases/latest)
+**下载 Windows 版：** [PaperBench 便携 ZIP 包](https://github.com/konijiw/paperbench/releases/latest/download/PaperBench-Windows.zip) · [版本说明](https://github.com/konijiw/paperbench/releases/latest)
 
 ## 可以做什么
 
 - **对照阅读：** PDF 与 MinerU 解析正文并排显示，阅读区域可调整、折叠。
 - **整理文献：** 批量导入 PDF，按标题、标签、收藏、阅读状态和加入时间查找论文；支持模糊搜索和内容重复检查。
-- **记笔记、做批注：** 保存整篇笔记，对 Markdown 原文选区添加批注和 AI 翻译，将摘录与图片加入笔记。
+- **记笔记、做批注：** 保存整篇笔记，对 Markdown 原文选区添加批注和 AI 翻译；支持拖入正文图片、本地图片，或粘贴截图，纯 PDF 论文也能记图文笔记。
 - **边读边问 AI：** 在论文旁与 Codex 对话，发送原文选区或图片，继续已有讨论。
 - **使用自己的提示词：** 在对话中随时调用、编辑和增删预设，例如“系统精读”“实际做到了什么”“对我的研究有什么启示”。所有预设同等管理，不分区。
 - **关联支撑材料：** 将支撑论文、PDF、视频、ZIP 和数据文件关联到正文；支持播放浏览器可解码的视频和 ZIP 内的视频。
@@ -26,7 +26,9 @@
 
 运行 `PaperBench.exe`，程序会启动本机服务，并在默认浏览器中打开阅读界面。
 
-从上方下载 EXE，放入可写的普通文件夹（例如 `D:\PaperBench`）后运行；也可以下载便携 ZIP 包，解压后运行其中的 EXE。无需下载源码或安装 Python 即可使用基础阅读功能。程序会在自身目录旁保存配置和阅读数据，请勿直接在压缩包内运行。
+从上方下载 ZIP 包，将里面的 **`PaperBench` 文件夹整体解压**到可写的位置（例如 `D:\PaperBench`），再运行文件夹里的 `PaperBench.exe`。无需下载源码或安装 Python 即可使用基础阅读功能，请勿直接在压缩包内运行。
+
+首次运行后，程序会在这个文件夹内自动创建 `state/`、`attachments/`、`prompts/`，保存配置、笔记、附件和提示词；论文文件保存在你选择的论文库。升级时先退出旧程序，只替换程序文件，保留自己的数据文件夹和论文库。
 
 AI 对话需另行安装并登录 Codex CLI；PDF 解析需另行安装 MinerU；自动从 PDF 提取引用信息需配置 `pdftotext`。这些是可选功能，不影响直接导入 PDF 阅读。开发者也可按下方的 [从源码构建](#从源码构建) 生成 EXE。
 
@@ -34,7 +36,7 @@ AI 对话需另行安装并登录 Codex CLI；PDF 解析需另行安装 MinerU�
 
 点击右上角的 **“打开文件夹”**，选择一个用于存放论文的文件夹。之后可以：
 
-- 将 PDF 拖到左侧论文库或页面空白处，直接复制入库。
+- 将 PDF 拖到左侧论文库，直接复制入库；图片请拖到阅读笔记。
 - 点击 **“导入论文 PDF”**，从不同文件夹累计选取文件，再批量导入。
 - 打开已有的 MinerU 解析结果目录。
 
@@ -114,6 +116,7 @@ PDF 自动文本提取需要额外的 `pdftotext`。缺少它时仍可手动填�
 | 书目信息与引用键 | `state/ai-literature-reader/citations/` |
 | 论文加入时间记录 | `state/ai-literature-reader/paper-added/` |
 | 附件副本及关联关系 | `attachments/` |
+| 粘贴截图、拖入本地图片的笔记图片 | `attachments/_note-images/` |
 | 提示词预设 | `prompts/` |
 
 上表中的相对路径均以 `PaperBench.exe` 所在目录为起点。

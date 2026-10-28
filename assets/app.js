@@ -568,6 +568,11 @@
       if (!/^(data:|blob:|https?:|\/)/i.test(source)) {
         image.setAttribute('data-paper-file', source);
         image.src = '/content/asset?paper=' + encodeURIComponent(state.currentPath) + '&file=' + encodeURIComponent(source);
+        image.draggable = true;
+        image.addEventListener('dragstart', function (event) {
+          event.dataTransfer.setData('application/x-paperbench-image', JSON.stringify({ paper: state.currentPath, file: source, alt: image.alt || '原文图片' }));
+          event.dataTransfer.effectAllowed = 'copy';
+        });
       }
       image.title = image.getAttribute('data-paper-file') ? '单击选择图片，可加入笔记或发送给 AI' : (image.title || '图片');
     });
@@ -734,6 +739,10 @@
     Array.prototype.forEach.call(els.markdownContent.querySelectorAll('img.ai-image-selected'), function (other) { other.classList.remove('ai-image-selected'); });
     image.classList.add('ai-image-selected');
     state.selectedImage = { file: file, url: image.src, alt: (image.alt || '').slice(0, 240) };
+    els.markdownContent.tabIndex = 0;
+    els.markdownContent.focus({ preventScroll: true });
+    var selection = window.getSelection();
+    if (selection) selection.removeAllRanges();
     updateImageNoteTools();
     state.selectedText = null;
     els.annotateSelection.disabled = true;
@@ -1532,6 +1541,14 @@
   els.markdownContent.addEventListener('click', function (event) {
     var image = event.target.closest && event.target.closest('img');
     if (image && els.markdownContent.contains(image)) selectMarkdownImage(image);
+  });
+  els.markdownContent.addEventListener('copy', function (event) {
+    var image = state.selectedImage;
+    if (!image || !event.clipboardData || String(window.getSelection() || '').trim()) return;
+    event.preventDefault();
+    event.clipboardData.setData('application/x-paperbench-image', JSON.stringify({ paper: state.currentPath, file: image.file, alt: image.alt }));
+    event.clipboardData.setData('text/html', '<img src="' + escapeHtml(image.url) + '" alt="' + escapeHtml(image.alt) + '">');
+    event.clipboardData.setData('text/plain', image.url);
   });
   els.sendSelectionToAi.addEventListener('click', sendSelectionToAi);
   els.addImageToNote.addEventListener('click', function () {

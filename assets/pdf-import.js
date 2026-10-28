@@ -1,7 +1,7 @@
 (function () {
   'use strict';
   var options, panel, overlay, button, picker, entries = [], jobs = [], history = [];
-  var running = false, activity = null, nextId = 0, selectionRound = 0, dragDepth = 0;
+  var running = false, activity = null, nextId = 0, selectionRound = 0;
   function $(id) { return document.getElementById(id); }
   async function api(url, data, binary) {
     var response = await fetch(url, data === undefined ? {} : { method: 'POST', headers: binary ? {} : { 'Content-Type': 'application/json' }, body: binary ? data : JSON.stringify(data) });
@@ -15,7 +15,7 @@
   function controls() {
     var waiting = available().length, queued = entries.filter(function (entry) { return entry.status === 'queued' || entry.status === 'importing'; }).length;
     button.textContent = activity ? '导入中 ' + activity.index + '/' + activity.total : waiting + queued ? '导入 PDF（' + (waiting + queued) + '）' : '导入论文 PDF';
-    button.title = activity ? activity.name + ' · ' + activity.percent + '%' : '跨文件夹累计选取；拖入 PDF 则直接自动入库';
+    button.title = activity ? activity.name + ' · ' + activity.percent + '%' : '跨文件夹累计选取；也可把 PDF 拖到左侧论文库直接入库';
     if (!panel) return;
     $('pdfImportCount').textContent = entries.length ? '清单 ' + entries.length + ' 份 · 待导入 ' + waiting + (queued ? ' · 已排队 ' + queued : '') : '清单为空，可从多个文件夹分次添加';
     $('pdfImportStart').disabled = !waiting; $('pdfImportStart').textContent = waiting ? '开始导入（' + waiting + '）' : '开始导入';
@@ -148,9 +148,18 @@
     $('pdfImportStart').onclick = function () { enqueue(available(), 'manual'); };
   }
   function fileDrag(event) { return event.dataTransfer && Array.from(event.dataTransfer.types || []).indexOf('Files') >= 0; }
-  function inAi(event) { return event.target && event.target.closest && event.target.closest('#aiPanel'); }
-  function hideDrop() { dragDepth = 0; overlay.classList.add('hidden'); document.body.classList.remove('pdf-file-dragging'); }
-  function showDrop() { overlay.classList.remove('hidden'); document.body.classList.add('pdf-file-dragging'); }
+  function pdfFile(file) { return /\.pdf$/i.test(file.name || '') || file.type === 'application/pdf'; }
+  function inLibrary(event) { return event.target && event.target.closest && event.target.closest('#explorerPanel:not(.collapsed)'); }
+  function possiblePdf(event) {
+    if (!fileDrag(event)) return false;
+    var files = Array.from(event.dataTransfer.files || []);
+    if (files.length) return files.some(pdfFile);
+    var items = Array.from(event.dataTransfer.items || []).filter(function (item) { return item.kind === 'file'; });
+    // Some file managers conceal file names/MIME until drop; final import always checks the files.
+    return !items.length || items.some(function (item) { return !item.type || item.type === 'application/pdf'; });
+  }
+  function hideDrop() { overlay.classList.add('hidden'); }
+  function showDrop() { overlay.classList.remove('hidden'); }
   window.LiteraturePdfImport = { mount: function (config) {
     options = config; button = $('importPdfs'); picker = $('importPdfFiles');
     button.onclick = function () { show(); if (!entries.length && !running && !history.length) selectFiles(); };
@@ -160,20 +169,23 @@
       entries = entries.concat(added); show();
     };
     overlay = document.createElement('div'); overlay.className = 'pdf-drop-overlay hidden'; overlay.setAttribute('aria-hidden', 'true');
-    overlay.innerHTML = '<div><strong>松开 PDF，直接导入论文库</strong><span>支持多份文件 · 自动复制，原文件保留</span></div>';
-    document.body.appendChild(overlay);
-    document.addEventListener('dragenter', function (e) { if (!fileDrag(e) || inAi(e)) return; e.preventDefault(); dragDepth++; showDrop(); });
+    overlay.innerHTML = '<div><strong>松开以导入 PDF</strong><span>仅接收 PDF · 原文件保留</span></div>';
+    $('explorerPanel').appendChild(overlay);
+    document.addEventListener('dragenter', function (e) { if (inLibrary(e) && possiblePdf(e)) { e.preventDefault(); showDrop(); } else hideDrop(); }, true);
     document.addEventListener('dragover', function (e) {
-      if (!fileDrag(e)) return;
-      if (inAi(e)) { hideDrop(); return; }
+      if (!inLibrary(e) || !possiblePdf(e)) { hideDrop(); return; }
       e.preventDefault(); e.dataTransfer.dropEffect = 'copy'; showDrop();
-    });
-    document.addEventListener('dragleave', function (e) { if (!fileDrag(e)) return; dragDepth = Math.max(0, dragDepth - 1); if (!dragDepth) hideDrop(); });
+    }, true);
+    document.addEventListener('dragleave', function (e) { if (!e.relatedTarget || !e.relatedTarget.closest || !e.relatedTarget.closest('#explorerPanel')) hideDrop(); }, true);
     document.addEventListener('dragend', hideDrop);
     document.addEventListener('drop', function (e) {
-      hideDrop(); if (!fileDrag(e) || inAi(e)) return;
+      hideDrop(); if (!fileDrag(e)) return;
+      // Outside the library, notes and AI own the drop; only prevent browser navigation.
+      if (!inLibrary(e)) { if (!e.defaultPrevented) e.preventDefault(); return; }
       e.preventDefault();
-      var files = Array.from(e.dataTransfer.files || []), added = createEntries(files, '直接拖入');
+      var files = Array.from(e.dataTransfer.files || []).filter(pdfFile);
+      if (!files.length) { options.toast('论文库只接收 PDF；图片请拖到阅读笔记。'); return; }
+      var added = createEntries(files, '直接拖入');
       if (added.length) { options.toast(running ? '已接收 ' + added.length + ' 份 PDF，按顺序自动导入。' : '正在自动导入 ' + added.length + ' 份 PDF…'); enqueue(added, 'drop'); }
     });
     window.addEventListener('blur', hideDrop);

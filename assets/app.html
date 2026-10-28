@@ -38,7 +38,7 @@
     </div>
     <div class="header-actions">
       <p class="third-party-credit" aria-label="开源声明与引用引擎署名"><span><a href="/licenses" target="_blank" rel="noopener noreferrer">开源声明</a> · © Frank Bennett</span><a href="https://citationstyles.org/" target="_blank" rel="noopener noreferrer">citeproc-js implements the Citation Style Language</a></p>
-      <button id="importPdfs" class="button secondary" type="button" title="跨文件夹累计选取；也可把 PDF 拖到左侧论文库或页面空白处直接导入">导入论文 PDF</button>
+      <button id="importPdfs" class="button secondary" type="button" title="跨文件夹累计选取；也可把 PDF 拖到左侧论文库直接导入">导入论文 PDF</button>
       <input id="importPdfFiles" class="hidden" type="file" accept=".pdf,application/pdf" multiple>
       <button id="chooseRoot" class="button secondary">打开文件夹</button>
       <button id="refreshTree" class="button icon-button" title="刷新论文库" aria-label="刷新论文库">↻</button>
@@ -147,7 +147,7 @@
         </div>
         <div id="paperNotePreview" class="paper-note-preview" aria-label="整篇论文笔记" tabindex="0"></div>
         <textarea id="paperNote" class="hidden" aria-label="编辑整篇论文笔记" placeholder="先写一句话也可以。记录论文要点、关键证据、疑问或对自己研究的启发…" spellcheck="false" disabled></textarea>
-        <div class="paper-note-footer"><button id="insertNoteTemplate" type="button" title="在笔记末尾补充尚未添加的小结标题，不覆盖原有内容">插入小结模板</button><span id="paperNoteSaveState" role="status" aria-live="polite">选择论文后开始记录</span></div>
+        <div class="paper-note-footer"><div class="paper-note-footer-actions"><button id="insertNoteTemplate" type="button" title="在笔记末尾补充尚未添加的小结标题，不覆盖原有内容">插入小结模板</button><button id="pasteNoteImage" type="button" title="粘贴剪贴板中的截图或图片">粘贴图片</button></div><span id="paperNoteSaveState" role="status" aria-live="polite">选择论文后开始记录</span></div>
       </section>
       <form id="annotationEditor" class="annotation-editor hidden" novalidate aria-label="编辑文字批注">
         <div class="annotation-editor-heading"><strong id="annotationEditorTitle">添加文字批注</strong><button id="closeAnnotationEditor" type="button" class="plain-icon" aria-label="取消本次批注" title="取消本次批注">×</button></div>

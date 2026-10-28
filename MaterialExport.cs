@@ -433,8 +433,9 @@ internal static partial class MinerULibraryReview
         }
         private string Resource(string file, string sourceDirectory, string outputFile, int depth)
         {
-            string full = Path.GetFullPath(Path.Combine(sourceDirectory, file.Replace('/', Path.DirectorySeparatorChar)));
-            if (!MaterialInside(full, source.directory) || !File.Exists(full)) throw new FileNotFoundException("文件不存在或不在这篇论文目录内", file);
+            bool noteImage = file.StartsWith(NoteImagePrefix, StringComparison.Ordinal);
+            string full = noteImage ? ResolveNoteImage(file.Substring(NoteImagePrefix.Length)) : Path.GetFullPath(Path.Combine(sourceDirectory, file.Replace('/', Path.DirectorySeparatorChar)));
+            if ((!noteImage && !MaterialInside(full, source.directory)) || !File.Exists(full)) throw new FileNotFoundException("文件不存在或不在这篇论文目录内", file);
             MaterialNoLinks(full);
             string relative;
             if (files.TryGetValue(full, out relative)) return RelativeLink(outputFile, relative);

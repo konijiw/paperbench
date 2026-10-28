@@ -255,3 +255,6 @@
 .recycle-buttons{display:flex;justify-content:flex-end;gap:10px;margin-top:20px}
 .recycle-buttons .recycle-confirm{background:#b94e3d;border-color:#b94e3d;color:#fff}
 .recycle-buttons button:disabled{opacity:.55;cursor:wait}
+.paper-note-section.note-image-drop{outline:2px solid var(--blue);outline-offset:-3px;background:#edf3ff}.paper-note-section.note-image-drop .paper-note-preview,.paper-note-section.note-image-drop textarea{background:#f5f8ff}
+#explorerPanel{position:relative}#explorerPanel>.pdf-drop-overlay{position:absolute;inset:6px;z-index:15;border-radius:9px;background:#fff6f0e8}#explorerPanel>.pdf-drop-overlay>div{max-width:100%;padding:18px 10px;text-align:center;gap:8px}#explorerPanel>.pdf-drop-overlay strong{font-size:14px}#explorerPanel>.pdf-drop-overlay span{font-size:11px}
+.paper-note-footer-actions{display:flex;align-items:center;gap:12px;flex-wrap:wrap}

@@ -2,6 +2,8 @@
   'use strict';
   var options, enabled = false, editing = false;
   var editor, preview, panel, paperPath = '', paperHasMarkdown = false;
+  var paperVersion = 0, imageBusy = false;
+  var imagePrefix = 'paperbench-note-images/', imageDragType = 'application/x-paperbench-image';
   var template = [
     ['阅读目的', '我想从这篇论文弄清楚什么？'],
     ['一句话概括', '用自己的话记下最值得记住的内容。'],
@@ -16,7 +18,7 @@
     if (!editor.value.trim()) {
       var empty = document.createElement('div'); empty.className = 'paper-note-empty';
       var title = document.createElement('strong'); title.textContent = enabled ? '先记下一点自己的理解' : '选择一篇论文，开始记录';
-      var hint = document.createElement('p'); hint.textContent = enabled ? '可以自由写，也可以插入阅读小结模板。只写一句话、只填部分小节都可以。' : '整篇笔记与文字批注保存在原来的阅读记录里。';
+      var hint = document.createElement('p'); hint.textContent = enabled ? '可以自由写，也可以插入阅读小结模板。支持从正文拖入图片、拖入本地图片，或点击这里后 Ctrl+V 粘贴截图。' : '整篇笔记与文字批注保存在原来的阅读记录里。';
       empty.appendChild(title); empty.appendChild(hint);
       if (enabled) {
         var start = document.createElement('button'); start.type = 'button'; start.className = 'button secondary'; start.textContent = '开始写笔记';
@@ -31,11 +33,12 @@
     fragment.querySelectorAll('img').forEach(function (image) {
       var source = image.getAttribute('src') || '', file;
       try { file = decodeURIComponent(source); } catch (_) { file = source; }
-      // Resolve before attaching to the live document: notes only load this paper's local images.
-      if (!paperHasMarkdown || !file || /^(?:[a-z][a-z0-9+.-]*:|[\\/])/i.test(file)) {
+      var managed = /^paperbench-note-images\/[a-f0-9]{64}\.(png|jpg|gif|webp|bmp)$/.test(file);
+      // Managed screenshots are portable and also work for papers with only a PDF.
+      if ((!managed && !paperHasMarkdown) || !file || /^(?:[a-z][a-z0-9+.-]*:|[\\/])/i.test(file)) {
         var hint = document.createElement('span'); hint.className = 'paper-note-prompt'; hint.textContent = '[图片未加载：仅支持当前 Markdown 论文目录中的图片]'; image.replaceWith(hint); return;
       }
-      image.src = '/content/asset?paper=' + encodeURIComponent(paperPath) + '&file=' + encodeURIComponent(file);
+      image.src = managed ? '/content/note-image?file=' + encodeURIComponent(file.slice(imagePrefix.length)) : '/content/asset?paper=' + encodeURIComponent(paperPath) + '&file=' + encodeURIComponent(file);
       image.loading = 'lazy'; image.className = 'paper-note-image';
       image.addEventListener('error', function () {
         var hint = document.createElement('span'); hint.className = 'paper-note-prompt'; hint.textContent = '[图片文件未找到：' + file + ']'; image.replaceWith(hint);
@@ -148,6 +151,138 @@
     if (firstHeading >= 0) { var firstBody = editor.value.indexOf('\n', firstHeading) + 2; editor.setSelectionRange(firstBody, firstBody); }
     options.toast('已补充小结标题，原有笔记保留；只填写需要的部分即可。');
   }
+  function imageFiles(transfer) {
+    if (!transfer) return [];
+    var isImage = function (file) { return file && (/^image\//i.test(file.type || '') || /\.(png|jpe?g|gif|webp|bmp)$/i.test(file.name || '')); };
+    var files = Array.from(transfer.items || []).filter(function (item) { return item.kind === 'file'; }).map(function (item) {
+      var file = item.getAsFile();
+      return file && !file.type && /^image\//i.test(item.type || '') ? new File([file], file.name || '截图', { type: item.type }) : file;
+    }).filter(isImage);
+    return files.length ? files : Array.from(transfer.files || []).filter(isImage);
+  }
+  function acceptsImages(transfer) {
+    if (!transfer) return false;
+    var types = Array.from(transfer.types || []), items = Array.from(transfer.items || []);
+    return types.indexOf(imageDragType) >= 0 || items.some(function (item) { return item.kind === 'file' && (!item.type || /^image\//i.test(item.type)); }) || imageFiles(transfer).length > 0 || (types.indexOf('Files') >= 0 && !items.length);
+  }
+  function sourceImage(transfer) {
+    if (!transfer || !transfer.getData) return null;
+    var custom = transfer.getData(imageDragType);
+    if (custom) {
+      var image = JSON.parse(custom);
+      if (image.paper === paperPath && typeof image.file === 'string' && image.file) return image;
+      return null;
+    }
+    // Browser "Copy image" can provide only HTML or a local image URL, not image bytes.
+    var sources = [], html = transfer.getData('text/html');
+    if (html) { var template = document.createElement('template'); template.innerHTML = html; var img = template.content.querySelector('img'); if (img) sources.push(img.getAttribute('src')); }
+    sources = sources.concat((transfer.getData('text/uri-list') || transfer.getData('text/plain') || '').split(/\r?\n/));
+    for (var source of sources) {
+      if (!source || source[0] === '#') continue;
+      try {
+        var url = new URL(source, window.location.href);
+        if (url.origin !== window.location.origin || url.pathname !== '/content/asset' || url.searchParams.get('paper') !== paperPath) continue;
+        var file = url.searchParams.get('file');
+        if (file) return { paper: paperPath, file: file, alt: '原文图片' };
+      } catch (_) {}
+    }
+    return null;
+  }
+  function addSourceImage(image) { if (image && addImage(image)) options.toast('原文图片已加入笔记，保留来源链接。'); }
+  async function pasteImage() {
+    if (!enabled) return;
+    if (!navigator.clipboard || !navigator.clipboard.read) { setEditing(true); options.toast('请在编辑框中按 Ctrl+V 粘贴截图。'); return; }
+    try {
+      var version = paperVersion, items = await navigator.clipboard.read(), files = [], html = '', text = '';
+      for (var item of items) {
+        var type = item.types.find(function (type) { return /^image\//i.test(type); });
+        if (type) files.push(new File([await item.getType(type)], '截图.' + (type.split('/')[1] || 'png'), { type: type }));
+        else {
+          if (item.types.indexOf('text/html') >= 0) html = await (await item.getType('text/html')).text();
+          if (item.types.indexOf('text/plain') >= 0) text = await (await item.getType('text/plain')).text();
+        }
+      }
+      if (version !== paperVersion) return;
+      if (files.length) { await importImages(files); return; }
+      var image = sourceImage({ getData: function (type) { return type === 'text/html' ? html : type === 'text/plain' ? text : ''; } });
+      if (image) { addSourceImage(image); return; }
+      options.toast('剪贴板中没有可用图片，请先截图或使用“复制图片”。');
+    } catch (_) { setEditing(true); options.toast('无法直接读取剪贴板，请在编辑框按 Ctrl+V 粘贴截图。'); }
+  }
+  async function importImages(files) {
+    if (!enabled || !files.length) return;
+    if (imageBusy) { options.toast('正在保存图片，请稍候再添加。'); return; }
+    var version = paperVersion, paper = paperPath, wasEditing = editing, original = editor.value;
+    var start = wasEditing ? editor.selectionStart : original.length, end = wasEditing ? editor.selectionEnd : original.length;
+    var markdown = [], errors = [];
+    imageBusy = true; setSaveState('正在保存图片…');
+    try {
+      for (var file of files) {
+        if (version !== paperVersion) break;
+        try {
+          if (file.size > 10 * 1024 * 1024) throw new Error('单张图片不能超过 10 MB');
+          var response = await fetch('/api/notes/image?paper=' + encodeURIComponent(paper), { method: 'POST', headers: { 'Content-Type': 'application/octet-stream' }, body: file });
+          var result = await response.json();
+          if (!response.ok) throw new Error(result.error || '图片保存失败');
+          if (!/^paperbench-note-images\/[a-f0-9]{64}\.(png|jpg|gif|webp|bmp)$/.test(result.file)) throw new Error('图片保存结果无效');
+          markdown.push('![' + literal(file.name || '截图') + '](<' + result.file + '>)');
+        } catch (error) { errors.push(error.message || '图片保存失败'); }
+      }
+      if (version !== paperVersion) { options.toast('已切换论文，本次图片未插入新笔记。'); return; }
+      if (markdown.length) {
+        // Do not replace text the user edited while the upload was in flight.
+        if (editor.value !== original) { start = editing ? editor.selectionStart : editor.value.length; end = start; }
+        var before = editor.value.slice(0, start), after = editor.value.slice(end);
+        insert((before && !before.endsWith('\n\n') ? '\n\n' : '') + markdown.join('\n\n') + (after.startsWith('\n') ? '\n' : '\n\n'), start, end);
+        if (!wasEditing) { setEditing(false); var images = preview.querySelectorAll('img'); if (images.length) images[images.length - 1].scrollIntoView({ block: 'nearest' }); }
+        options.toast('已加入 ' + markdown.length + ' 张图片。' + (errors.length ? ' 部分未添加：' + errors[0] : ''));
+      } else if (errors.length) { setSaveState('图片保存失败'); options.toast(errors[0]); }
+    } finally { imageBusy = false; }
+  }
+  function mountImageInput() {
+    var section = editor.closest('.paper-note-section');
+    section.title = '可拖入正文图片或本地图片；点击笔记后 Ctrl+V 粘贴截图';
+    editor.placeholder += ' 支持拖入图片或 Ctrl+V 粘贴截图。';
+    preview.addEventListener('click', function (event) { if (!event.target.closest('a,button,summary,input')) preview.focus({ preventScroll: true }); });
+    section.addEventListener('pointerdown', function (event) { if (!editing && !event.target.closest('a,button,summary,input,textarea')) preview.focus({ preventScroll: true }); });
+    preview.addEventListener('keydown', function (event) {
+      if (!enabled || event.isComposing || !(event.ctrlKey || event.metaKey) || event.altKey || event.key.toLowerCase() !== 'v') return;
+      if (navigator.clipboard && navigator.clipboard.read) { event.preventDefault(); pasteImage(); }
+      else setEditing(true);
+    });
+    $('pasteNoteImage').onclick = pasteImage;
+    document.addEventListener('paste', function (event) {
+      if (!enabled || !(section.contains(event.target) || section.contains(document.activeElement))) return;
+      var source;
+      try { source = sourceImage(event.clipboardData); } catch (_) {}
+      if (source) { event.preventDefault(); event.stopPropagation(); addSourceImage(source); return; }
+      var files = imageFiles(event.clipboardData);
+      if (!files.length) return;
+      event.preventDefault(); event.stopPropagation(); importImages(files);
+    }, true);
+    section.addEventListener('dragover', function (event) {
+      if (!enabled || !acceptsImages(event.dataTransfer)) return;
+      event.preventDefault(); event.stopPropagation(); event.dataTransfer.dropEffect = 'copy'; section.classList.add('note-image-drop');
+    });
+    section.addEventListener('dragleave', function (event) { if (!section.contains(event.relatedTarget)) section.classList.remove('note-image-drop'); });
+    section.addEventListener('drop', function (event) {
+      section.classList.remove('note-image-drop');
+      if (!enabled || !acceptsImages(event.dataTransfer)) return;
+      event.preventDefault(); event.stopPropagation();
+      var source = event.dataTransfer.getData(imageDragType);
+      if (source) {
+        try {
+          var image = JSON.parse(source);
+          if (image.paper !== paperPath || typeof image.file !== 'string' || !image.file) throw new Error('请把当前论文的正文图片拖入笔记。');
+          if (addImage(image)) options.toast('原文图片已加入笔记，保留来源链接。');
+        } catch (error) { options.toast(error.message || '无法添加这张图片。'); }
+      } else {
+        var files = imageFiles(event.dataTransfer);
+        if (files.length) importImages(files); else options.toast('阅读笔记接收图片；PDF 请拖到左侧论文库。');
+      }
+    });
+    document.addEventListener('dragend', function () { section.classList.remove('note-image-drop'); });
+  }
   function mount(config) {
     options = config; editor = $('paperNote'); preview = $('paperNotePreview'); panel = $('notesPanel');
     $('readPaperNote').onclick = function () { setEditing(false); };
@@ -164,12 +299,13 @@
       button.addEventListener('mousedown', function (e) { e.preventDefault(); });
       button.onclick = function () { format(button.dataset.noteFormat); };
     });
-    setPaper(null);
+    mountImageInput(); setPaper(null);
   }
   function setPaper(paper) {
+    paperVersion++;
     paperPath = paper ? paper.path : ''; paperHasMarkdown = !!(paper && paper.hasMarkdown);
     enabled = !!paper; editor.disabled = !enabled;
-    $('editPaperNote').disabled = !enabled; $('insertNoteTemplate').disabled = !enabled; $('expandPaperNote').disabled = !enabled;
+    $('editPaperNote').disabled = !enabled; $('insertNoteTemplate').disabled = !enabled; $('expandPaperNote').disabled = !enabled; $('pasteNoteImage').disabled = !enabled;
     editor.value = paper ? paper.review.note || '' : '';
     editor.scrollTop = 0; preview.scrollTop = 0; setEditing(false);
     setSaveState(paper ? '已保存' : '选择论文后开始记录');

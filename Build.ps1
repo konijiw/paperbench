@@ -83,6 +83,7 @@ $arguments = @(
     (Join-Path $projectDirectory 'CitationSearch.cs'),
     (Join-Path $projectDirectory 'CitationRecognition.cs'),
     (Join-Path $projectDirectory 'MaterialExport.cs'),
+    (Join-Path $projectDirectory 'NoteImages.cs'),
     (Join-Path $projectDirectory 'DesktopDialogs.cs')
     (Join-Path $projectDirectory 'PaperRecycle.cs')
     (Join-Path $projectDirectory 'LocalMinerU.cs')

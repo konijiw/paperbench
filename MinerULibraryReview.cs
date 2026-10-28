@@ -227,6 +227,7 @@ internal static partial class MinerULibraryReview
                 else if (path == "/api/citation/scan" && request.method == "GET") WriteJson(stream, ScanCitation(query["paper"]));
                 else if (path == "/api/citation/lookup" && request.method == "POST") WriteJson(stream, LookupCitation(Json.Deserialize<Dictionary<string, string>>(request.body)["doi"]));
                 else if (path == "/api/save" && request.method == "POST") SavePaper(stream, request.body);
+                else if (path == "/api/notes/image" && request.method == "POST") SaveNoteImage(stream, query["paper"], request.bodyBytes);
                 else if (path == "/api/tags/delete" && request.method == "POST") DeleteTag(stream, request.body);
                 else if (path == "/api/tags/update" && request.method == "POST") UpdateTag(stream, request.body);
                 else if (path == "/api/ai/connect") WriteJson(stream, GetCodex().ConnectInfo());
@@ -242,6 +243,7 @@ internal static partial class MinerULibraryReview
                 else if (path == "/content/markdown") ServeMarkdown(stream, query["paper"]);
                 else if (path == "/content/pdf") ServePdf(stream, query["paper"], request.headers);
                 else if (path == "/content/asset") ServeAsset(stream, query["paper"], query["file"]);
+                else if (path == "/content/note-image") { string image = ResolveNoteImage(query["file"]); WriteFile(stream, image, MimeType(image), null); }
                 else if (path == "/content/attachment") ServeAttachment(stream, query["id"], query["entry"], request.headers);
                 else if (path == "/heartbeat")
                 {
