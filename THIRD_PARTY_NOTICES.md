@@ -77,6 +77,18 @@ not waive them.
 | [MathJax](https://github.com/mathjax/MathJax) | `assets/mathjax-tex-svg-full.js` | Apache-2.0: [assets/LICENSE-mathjax.txt](assets/LICENSE-mathjax.txt) |
 | [DOMPurify](https://github.com/cure53/DOMPurify) | `assets/purify.min.js` | Distributed here under the Apache-2.0 option: [assets/LICENSE-dompurify.txt](assets/LICENSE-dompurify.txt) |
 
+## PDF.js reader
+
+- Mozilla PDF.js / pdfjs-dist, version 5.6.205: https://github.com/mozilla/pdf.js.
+- Files: `assets/pdf-reader/pdfjs/`; these are unmodified upstream distribution files.
+- License: Apache-2.0, retained in `assets/LICENSE-pdfjs.txt` and the bundled `pdfjs/LICENSE`.
+- CMaps, standard fonts, and WASM decoders retain their own `LICENSE*` notices in the
+  corresponding subdirectories; all these notices are included in `/licenses`.
+- The reader adapter, geometry, quote matching, and gesture code are PaperBench code.
+  They do not contain code copied from NeoRead or PDF++.
+- The build embeds the reader and dependencies in the executable. Runtime reading
+  uses local resources and does not load a CDN or require a separate Node.js installation.
+
 ## External tools and user material
 
 MinerU, Codex CLI, and optional PDF extraction tools are external dependencies,

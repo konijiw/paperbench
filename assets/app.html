@@ -1,4 +1,4 @@
-﻿<!doctype html>
+<!doctype html>
 <html lang="zh-CN">
 <head>
   <meta charset="utf-8">
@@ -12,7 +12,7 @@
 <body>
   <header class="app-header">
     <div class="brand">
-      <span class="brand-mark">文</span>
+      <span class="brand-mark" aria-hidden="true"><svg viewBox="0 0 32 32" fill="none"><path d="M9 4.5h10l6 6v17H9a2 2 0 0 1-2-2v-19a2 2 0 0 1 2-2Z"/><path d="M19 4.5v6h6M12 16h8M12 20h8M12 24h5"/></svg></span>
       <div><strong>PaperBench</strong><small id="libraryPath">正在读取论文库…</small></div>
     </div>
     <div class="header-controls">
@@ -104,14 +104,18 @@
           </div>
           <button id="favoritePaper" class="button secondary" title="收藏当前论文">☆ 收藏</button>
           <button id="manageAttachments" class="button secondary attachment-trigger" type="button">附件</button>
-          <button id="recyclePaper" class="button secondary" type="button" title="将当前论文目录移至系统回收站">移至回收站</button>
+          <button id="recyclePaper" class="button secondary recycle-icon" type="button" title="将当前论文目录移至系统回收站" aria-label="移至回收站"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 6h18M9 6V3h6v3M5 6l1 15h12l1-15M10 10v7m4-7v7"/></svg></button>
         </div>
 
         <div class="reading-layout pdf-collapsed" id="readingLayout">
           <section class="pdf-pane">
-            <div class="pane-label"><span>原始 PDF</span><span id="pdfName"></span><button id="collapsePdf" class="plain-icon" title="折叠 PDF">‹</button></div>
+            <div class="pane-label"><span>原始 PDF</span><span id="pdfName"></span><span id="mineruParseBar" class="mineru-parse-bar hidden"><button id="mineruParse" class="plain-text-button" type="button" title="选择解析方式" aria-expanded="false" aria-controls="pdfParseMenu">解析 PDF</button><div id="pdfParseMenu" class="pdf-parse-menu" hidden>
+                <button id="pdfParseFine" type="button" disabled>精细解析 <small>MinerU · 正文、公式和图片</small></button>
+                <button id="pdfParseText" type="button">文本提取 <small>保存全文为 pdf-text.txt</small></button>
+                <label id="pdfParseCleanupRow" hidden><input id="pdfParseCleanup" type="checkbox">清理另一种方式的解析内容</label>
+                <button id="pdfParseConfigure" class="pdf-parse-configure" type="button">设置 MinerU 位置…</button>
+              </div></span><button id="collapsePdf" class="plain-icon" title="折叠 PDF">‹</button></div>
             <iframe id="pdfFrame" title="原始 PDF"></iframe>
-            <div id="mineruParseBar" class="mineru-parse-bar hidden"><button id="mineruParse" class="button accent" type="button" title="使用本机 MinerU 解析当前 PDF">解析 PDF</button></div>
             <button id="pdfRail" class="pdf-rail" title="展开原始 PDF"><span>PDF</span><span>›</span></button>
           </section>
           <div id="readerDivider" class="reader-divider" title="拖动调整宽度"></div>
@@ -249,15 +253,19 @@
   <script src="/assets/mathjax.js"></script>
   <script src="/assets/zcs/protocol.js"></script>
   <script src="/assets/zcs/ai-client.js"></script>
+  <script src="/assets/compatible-api.js"></script>
   <script src="/assets/zcs/katex.js"></script>
   <script src="/assets/zcs/markdown.js"></script>
   <script src="/assets/zcs/sidebar.js"></script>
   <script src="/assets/zcs/ai-chat.js"></script>
+  <script src="/assets/paper-search.js"></script>
   <script src="/assets/citations.js"></script>
   <script src="/assets/word-citations.js"></script>
   <script src="/assets/paper-notes.js"></script>
   <script src="/assets/material-export.js"></script>
   <script src="/assets/pdf-import.js"></script>
   <script src="/assets/app.js"></script>
+  <script type="module" src="/pdf-reader/search-index.mjs"></script>
+  <script type="module" src="/pdf-reader/processing.mjs"></script>
 </body>
 </html>

@@ -105,6 +105,7 @@
     const paths = {
       codex: "M8 4 3 9l5 5m8-10 5 5-5 5M13.5 2l-3 14",
       plus: "M9 3v12M3 9h12",
+      image: "M6 2H2v4m10-4h4v4M2 12v4h4m10-4v4h-4M5 6h8v6H5Z",
       search: "M12 12l4 4M13 7.5a5.5 5.5 0 1 1-11 0 5.5 5.5 0 0 1 11 0",
       refresh: "M15 7a6 6 0 1 0-1 6M15 2v5h-5",
       chevron: "m6 7 3 3 3-3",
@@ -270,6 +271,15 @@
 
   function setButtonLabel(button, label, l10nID, fallbackTitle) {
     button.textContent = label;
+    if (label === "↑" && button.classList.contains("zcs-send-button")) {
+      const svg = button.ownerDocument.createElementNS("http://www.w3.org/2000/svg", "svg");
+      svg.setAttribute("viewBox", "0 0 24 24"); svg.setAttribute("aria-hidden", "true");
+      const path = button.ownerDocument.createElementNS(svg.namespaceURI, "path");
+      path.setAttribute("d", "M12 20V4M5 11l7-7 7 7"); path.setAttribute("fill", "none");
+      path.setAttribute("stroke", "currentColor"); path.setAttribute("stroke-width", "1.9");
+      path.setAttribute("stroke-linecap", "round"); path.setAttribute("stroke-linejoin", "round");
+      svg.append(path); button.replaceChildren(svg);
+    }
     button.title = fallbackTitle;
     button.setAttribute("aria-label", fallbackTitle);
     setL10n(button, l10nID);
@@ -770,7 +780,12 @@
       presetButton.setAttribute("aria-label", "提示词预设");
       presetButton.setAttribute("aria-haspopup", "dialog");
       presetButton.setAttribute("aria-expanded", "false");
-      composerTools.append(contextAddButton, contextModeButton, presetButton);
+      const captureButton = create(doc, "button", "zcs-composer-tool zcs-capture-button");
+      captureButton.type = "button"; captureButton.title = "框选 PDF 截图";
+      captureButton.setAttribute("aria-label", "框选 PDF 截图");
+      captureButton.append(createUIIcon(doc, "image"));
+      captureButton.addEventListener("click", () => global.dispatchEvent(new CustomEvent("paperbench-request-pdf-capture")));
+      composerTools.append(contextAddButton, captureButton, contextModeButton, presetButton);
       const modelTrigger = create(doc, "button", "zcs-model-trigger");
       modelTrigger.type = "button";
       modelTrigger.setAttribute("aria-haspopup", "dialog");
@@ -1418,6 +1433,8 @@
       const send = this.elements.sendButton;
       const unavailable = this.creatingTask || this.contextTransitioning;
       this.elements.input.disabled = this.contextTransitioning;
+      const capture = this.body.querySelector(".zcs-capture-button");
+      if (capture) capture.disabled = unavailable || this.running || !this.context?.pdfPath;
       this.elements.newThreadButton.disabled = unavailable;
       if (this.elements.headerNewButton) this.elements.headerNewButton.disabled = unavailable;
       this.elements.threadButton.disabled = unavailable;
@@ -2613,7 +2630,7 @@
     }
 
     showError(error) {
-      const message = ClientTools.publicError(error);
+      const message = typeof ClientTools.publicError === "function" ? ClientTools.publicError(error) : String(error?.message || error || "连接失败");
       const revision = this.setStatus("error", message);
       setPlainText(this.elements.pathStatus, message);
       if (error?.l10nID) {

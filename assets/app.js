@@ -1,4 +1,4 @@
-﻿(function () {
+(function () {
   'use strict';
 
   var state = {
@@ -24,6 +24,9 @@
     translationClient: null,
     notesExpanded: false,
     notesLayoutAuto: null,
+    readingSource: 'markdown',
+    pdfSession: '',
+    pdfReady: false,
     attachments: [], availablePapers: [], duplicates: [], expandedPapers: {}, activeAttachment: null, libraryRevision: 0
   };
 
@@ -88,6 +91,7 @@
       state.tree = data.tree;
       state.attachments = data.attachments || [];
       state.availablePapers = data.availablePapers || [];
+      window.PaperSearch.setLibrary(data.libraryRoot, state.availablePapers);
       state.duplicates = data.duplicates || [];
       state.libraryRevision = data.revision || 0;
       state.papers = [];
@@ -122,10 +126,7 @@
         (state.scope !== 'recent' || paper.lastOpenedAt);
     });
     if (query) {
-      filtered = filtered.map(function (paper) { return { paper: paper, score: paperSearchScore(paper, query) }; })
-        .filter(function (item) { return item.score !== null; })
-        .sort(function (a, b) { return a.score - b.score || String(a.paper.parsedTitle || a.paper.name).localeCompare(String(b.paper.parsedTitle || b.paper.name), 'zh-CN'); })
-        .map(function (item) { return item.paper; });
+      filtered = window.PaperSearch.filter(filtered, query, state.viewMode === 'tags');
     }
     if (!filtered.length) {
       els.fileTree.innerHTML = '<div class="tree-empty">没有符合当前条件的论文。</div>';
@@ -147,57 +148,6 @@
       els.fileTree.innerHTML = renderTreeNode(state.tree, 0, true);
     }
     bindTreeEvents();
-  }
-
-  function normalizeSearch(value) {
-    return String(value || '').normalize('NFKC').toLocaleLowerCase();
-  }
-
-  function compactSearch(value) {
-    return normalizeSearch(value).replace(/[\p{P}\p{S}\s]+/gu, '');
-  }
-
-  function oneEditApart(left, right) {
-    if (Math.abs(left.length - right.length) > 1 || left === right) return false;
-    var i = 0, j = 0, edits = 0;
-    while (i < left.length && j < right.length) {
-      if (left[i] === right[j]) { i++; j++; continue; }
-      if (++edits > 1) return false;
-      if (left.length > right.length) i++;
-      else if (right.length > left.length) j++;
-      else { i++; j++; }
-    }
-    return edits + (left.length - i) + (right.length - j) <= 1;
-  }
-
-  function fieldSearchScore(value, query) {
-    var normalized = normalizeSearch(value), compact = compactSearch(value);
-    if (!compact) return null;
-    var whole = compactSearch(query);
-    if (whole && compact.indexOf(whole) >= 0) return compact.indexOf(whole) === 0 ? 0 : 1;
-    var terms = normalizeSearch(query).split(/[\p{P}\p{S}\s]+/u).filter(Boolean);
-    if (!terms.length) return null;
-    var words = normalized.match(/[a-z0-9]+/g) || [];
-    var penalty = 0;
-    for (var i = 0; i < terms.length; i++) {
-      var term = compactSearch(terms[i]);
-      if (!term) continue;
-      if (compact.indexOf(term) >= 0) { penalty += 1; continue; }
-      if (!/^[a-z0-9]{4,}$/.test(term) || !words.some(function (word) { return oneEditApart(term, word); })) return null;
-      penalty += 4;
-    }
-    return 3 + penalty;
-  }
-
-  function paperSearchScore(paper, query) {
-    var fields = [paper.title, paper.parsedTitle, paper.name, paper.path];
-    if (state.viewMode === 'tags') fields = fields.concat(Array.isArray(paper.tags) ? paper.tags : []);
-    var best = null;
-    fields.forEach(function (field, index) {
-      var score = fieldSearchScore(field, query);
-      if (score !== null) best = best === null ? index * 10 + score : Math.min(best, index * 10 + score);
-    });
-    return best;
   }
 
   function renderTreeNode(node, depth, root) {
@@ -427,6 +377,9 @@
   }
 
   function clearPaper() {
+    state.pdfReady = false;
+    if (parseMenu) closeParseMenu();
+    pendingPdfCapture = null; state.pdfSession = '';
     closeAttachmentViewer();
     suspendAnnotationEditor();
     state.annotationDrafts = Object.create(null);
@@ -455,6 +408,9 @@
     clearMarkdownImageSelection();
     Promise.resolve(state.dirty ? saveNow() : null).then(function () {
       state.currentPath = path;
+      state.pdfReady = false;
+      if (parseMenu) closeParseMenu();
+      pendingPdfCapture = null; state.pdfSession = ''; state.readingSource = 'markdown';
       state.selectedText = null;
       state.selectedImage = null;
       els.annotateSelection.disabled = true;
@@ -495,12 +451,11 @@
       window.AILiteratureChat.setPaper(state.currentPaper).catch(function (error) {
         showToast('AI 工作区切换失败：' + error.message);
       });
+      refreshLocalMinerU();
       if (!state.currentPaper.hasMarkdown) {
         els.markdownContent.innerHTML = '';
-        refreshLocalMinerU();
         return;
       }
-      els.mineruParseBar.classList.add('hidden');
       return renderMarkdown(token);
     }).then(function () {
       if (token !== state.loadToken || !state.currentPaper) return;
@@ -516,14 +471,15 @@
   var mineruCompletedSeen = {};
   function refreshLocalMinerU() {
     var paper = state.currentPaper;
-    if (!paper || paper.hasMarkdown) { els.mineruParseBar.classList.add('hidden'); return; }
+    if (!paper) { els.mineruParseBar.classList.add('hidden'); return; }
     var path = paper.path;
     els.mineruParseBar.classList.remove('hidden');
     api('/api/local-mineru/status?paper=' + encodeURIComponent(path)).then(function (result) {
-      if (!state.currentPaper || state.currentPaper.path !== path || state.currentPaper.hasMarkdown) return;
+      if (!state.currentPaper || state.currentPaper.path !== path) return;
       els.mineruParse.dataset.available = result.available ? 'true' : 'false';
-      els.mineruParse.disabled = result.state === 'running' || result.state === 'completed' || (result.available && result.running >= result.capacity);
-      els.mineruParse.textContent = !result.available ? '选择 MinerU' : result.state === 'running' ? '解析中…' : result.state === 'failed' ? '重试解析' : result.state === 'completed' ? '解析完成' : '解析 PDF';
+      els.mineruParse.disabled = result.state === 'running' || pdfTextBusy;
+      els.mineruParse.textContent = result.state === 'running' ? '精细解析中…' : pdfTextBusy ? '提取中…' : '解析 PDF';
+      document.getElementById('pdfParseFine').disabled = !result.available || result.state === 'running' || (!paper.hasMarkdown && result.running >= result.capacity);
       els.mineruParse.title = result.message || (!result.available ? '选择本机 MinerU 安装目录' : result.running >= result.capacity ? '已有两篇论文正在解析' : '使用本机 MinerU 解析当前 PDF');
       if (result.state === 'completed') {
         if (!mineruCompletedSeen[path]) { mineruCompletedSeen[path] = true; loadTree(true); }
@@ -626,10 +582,82 @@
     els.toggleMarkdown.setAttribute('aria-pressed', String(!markdownCollapsed));
     els.toggleMarkdown.textContent = markdownCollapsed ? '展开 Markdown' : '收起 Markdown';
     els.toggleMarkdown.title = els.toggleMarkdown.textContent;
-    if (!pdfCollapsed && !els.pdfFrame.getAttribute('src'))
-      els.pdfFrame.src = '/content/pdf?paper=' + encodeURIComponent(state.currentPath);
+    if (!pdfCollapsed && !els.pdfFrame.getAttribute('src')) {
+      state.pdfSession = makeId(); state.pdfReady = false;
+      els.pdfFrame.src = '/pdf-reader/index.html?paper=' + encodeURIComponent(state.currentPath) + '&session=' + encodeURIComponent(state.pdfSession);
+    }
+    if (pdfCollapsed && state.selectedText && state.selectedText.source === 'pdf') clearActiveTextSelection();
+    pdfCommand('visibility', { visible: !pdfCollapsed });
     updateReadingSplit();
   }
+
+  function pdfCommand(kind, data) {
+    if (!state.pdfReady || !state.currentPaper || !els.pdfFrame.contentWindow) return;
+    els.pdfFrame.contentWindow.postMessage(Object.assign({ type: 'paperbench-pdf-command', kind: kind,
+      paper: state.currentPath, session: state.pdfSession }, data || {}), window.location.origin);
+  }
+
+  function syncPdfAnnotations() {
+    if (state.currentPaper) pdfCommand('annotations', { annotations: state.currentPaper.review.annotations });
+  }
+
+  function usePdfForLocation() {
+    var pdfVisible = state.currentPaper && !els.readingLayout.classList.contains('pdf-collapsed');
+    var mdVisible = state.currentPaper && state.currentPaper.hasMarkdown && !els.readingLayout.classList.contains('markdown-collapsed');
+    return pdfVisible && (!mdVisible || state.readingSource === 'pdf');
+  }
+
+  function locateInPdf(annotation) {
+    if (!state.pdfReady) { showToast('PDF 正在打开，请稍后再定位。'); return; }
+    pdfCommand('locate', { annotation: annotation, requestId: makeId() });
+  }
+
+  function clearActiveTextSelection() {
+    pdfCommand('clearSelection');
+    window.getSelection().removeAllRanges(); state.selectedText = null;
+    els.annotateSelection.disabled = true; els.translateSelection.disabled = true;
+    els.sendSelectionToAi.disabled = !state.selectedImage;
+  }
+
+  function acceptPdfSelection(selection) {
+    state.readingSource = 'pdf';
+    state.selectedText = selection ? JSON.parse(JSON.stringify(selection)) : null;
+    if (selection) {
+      window.getSelection().removeAllRanges(); clearMarkdownImageSelection();
+    }
+    els.annotateSelection.disabled = !selection || state.translating;
+    els.translateSelection.disabled = !selection || state.translating;
+    els.sendSelectionToAi.disabled = !selection && !state.selectedImage;
+  }
+
+  window.addEventListener('message', function (event) {
+    var data = event.data;
+    if (event.source !== els.pdfFrame.contentWindow || event.origin !== window.location.origin ||
+        !data || data.type !== 'paperbench-pdf-event' || !state.currentPaper ||
+        data.paper !== state.currentPath || data.session !== state.pdfSession) return;
+    if (data.kind === 'capture' && data.url) {
+      window.AILiteratureChat.addScreenshot(data.url, data.page).then(function (added) {
+        if (added) { setAiCollapsed(false, true); showToast('截图已加入 AI 附件'); }
+      }).catch(function (error) { showToast(error.message); });
+    }
+    if (data.kind === 'ready') {
+      state.pdfReady = true; syncPdfAnnotations();
+      if (pendingPdfCapture === state.currentPath) { pendingPdfCapture = null; pdfCommand('capture'); }
+    }
+    if (data.kind === 'activity') state.readingSource = 'pdf';
+    if (data.kind === 'annotationClick') showAnnotationCard(data.id);
+    if (data.kind === 'selection') {
+      if (data.selection || (state.selectedText && state.selectedText.source === 'pdf')) acceptPdfSelection(data.selection);
+    }
+    if (data.kind === 'action' && data.selection) {
+      acceptPdfSelection(data.selection);
+      if (data.action === 'annotate') openNewAnnotationEditor();
+      if (data.action === 'translate') translateSelection();
+      if (data.action === 'send') sendSelectionToAi();
+    }
+    if (data.kind === 'located' && data.status !== 'matched') showToast(data.message || '未能定位 PDF 原文');
+    if (data.kind === 'error') showToast('PDF 打开失败，可使用阅读区的“原始文件”：' + data.message);
+  });
 
   function setPdfCollapsed(collapsed, save) {
     if (!state.currentPaper || !state.currentPaper.hasMarkdown) return;
@@ -719,11 +747,13 @@
     var leadingWhitespace = rawSelection.indexOf(quote);
     var start = before.length + Math.max(0, leadingWhitespace);
     state.selectedText = {
+      source: 'markdown',
       quote: quote,
       prefix: full.substring(Math.max(0, start - 50), start),
       suffix: full.substring(start + quote.length, start + quote.length + 50)
     };
-    els.annotateSelection.disabled = false;
+    state.readingSource = 'markdown'; pdfCommand('clearSelection');
+    els.annotateSelection.disabled = state.translating;
     els.translateSelection.disabled = state.translating;
     state.selectedImage = null;
     updateImageNoteTools();
@@ -767,7 +797,7 @@
   }
 
   function addAnnotationToNote(id) {
-    if (!state.currentPaper || !state.currentPaper.hasMarkdown) return;
+    if (!state.currentPaper) return;
     var annotation = state.currentPaper.review.annotations.find(function (item) { return item.id === id; });
     if (!annotation) return;
     setNotesCollapsed(false);
@@ -775,13 +805,12 @@
   }
 
   function locateNoteSource(kind, value) {
-    if (!state.currentPaper || !state.currentPaper.hasMarkdown || state.currentPaper.path !== state.currentPath) return;
+    if (!state.currentPaper || state.currentPaper.path !== state.currentPath) return;
     if (kind === 'annotation') {
       if (!state.currentPaper.review.annotations.some(function (item) { return item.id === value; })) {
         showToast('原批注已删除；笔记中的摘录仍保留，可在正文中搜索核对。'); return;
       }
       focusAnnotation(value);
-      if (!els.markdownContent.querySelector('mark[data-annotation-id="' + cssEscape(value) + '"]')) showToast('未能定位原文，Markdown 内容可能已变化；笔记摘录仍保留。');
       return;
     }
     if (kind === 'image') {
@@ -806,9 +835,9 @@
       }).catch(function (error) { showToast(error.message); });
       return;
     }
-    if (state.selectedText && window.AILiteratureChat.addTextSelection(state.selectedText.quote)) {
+    if (state.selectedText && window.AILiteratureChat.addTextSelection(state.selectedText.quote, state.selectedText.pdfAnchor?.fragments?.[0]?.page)) {
       showToast('文字选区已放入 AI 对话');
-      window.getSelection().removeAllRanges();
+      clearActiveTextSelection();
       state.selectedText = null;
       els.annotateSelection.disabled = true;
       els.translateSelection.disabled = true;
@@ -818,12 +847,9 @@
 
   function translateSelection() {
     if (!state.selectedText || state.translating || !state.currentPaper) return;
-    var selection = {
-      quote: state.selectedText.quote,
-      prefix: state.selectedText.prefix,
-      suffix: state.selectedText.suffix
-    };
+    var selection = JSON.parse(JSON.stringify(state.selectedText));
     var paperPath = state.currentPath;
+    var paperToken = state.loadToken;
     state.translating = true;
     els.translateSelection.disabled = true;
     els.translateSelection.textContent = '翻译中…';
@@ -832,8 +858,8 @@
     if (!state.translationClient) {
       state.translationClient = new window.ZoteroCodexModules.CodexClient.BrowserCodexClient({ log: function () {} });
     }
-    state.translationClient.translateText(selection.quote).then(function (translation) {
-      if (!state.currentPaper || state.currentPath !== paperPath) {
+    (window.PaperBenchApi ? window.PaperBenchApi.translateText(selection.quote, state.translationClient) : state.translationClient.translateText(selection.quote)).then(function (translation) {
+      if (!state.currentPaper || state.currentPath !== paperPath || state.loadToken !== paperToken) {
         showToast('论文已切换，本次译文未保存');
         return;
       }
@@ -842,11 +868,12 @@
         id: makeId(), quote: selection.quote, prefix: selection.prefix, suffix: selection.suffix,
         comment: translation, kind: 'translation', createdAt: now, updatedAt: now
       };
+      annotation.source = selection.source || 'markdown'; annotation.pdfAnchor = selection.pdfAnchor || null;
       state.currentPaper.review.annotations.push(annotation);
       applyOneHighlight(annotation);
       renderAnnotations();
       scheduleSave();
-      window.getSelection().removeAllRanges();
+      clearActiveTextSelection();
       state.selectedText = null;
       showToast('译文已保存到批注');
     }).catch(function (error) {
@@ -872,7 +899,7 @@
   }
 
   function renderAnnotationEditor(focus) {
-    var valid = state.currentPaper && state.currentPaper.hasMarkdown && state.currentPaper.path === state.currentPath;
+    var valid = state.currentPaper && state.currentPaper.path === state.currentPath;
     var draft = valid ? state.annotationDrafts[state.currentPath] : null;
     if (!draft) { suspendAnnotationEditor(); return; }
     if (state.annotationDraft !== draft) els.annotationEditor.scrollTop = 0;
@@ -889,15 +916,17 @@
   }
 
   function beginAnnotationDraft(id, source) {
-    if (!state.currentPaper || !state.currentPaper.hasMarkdown || state.currentPaper.path !== state.currentPath) return;
+    if (!state.currentPaper || state.currentPaper.path !== state.currentPath) return;
     var previous = state.annotationDrafts[state.currentPath];
-    if (previous && previous.id === id && (id || (previous.quote === source.quote && previous.prefix === source.prefix && previous.suffix === source.suffix))) {
+    if (previous && previous.id === id && (id || (previous.quote === source.quote && previous.prefix === source.prefix && previous.suffix === source.suffix &&
+        previous.source === (source.source || 'markdown') && JSON.stringify(previous.pdfAnchor) === JSON.stringify(source.pdfAnchor || null)))) {
       renderAnnotationEditor(true); return;
     }
     if (annotationDraftChanged(previous) && !window.confirm('当前有尚未保存的批注，放弃这份草稿并编辑另一条？')) return;
     var original = id ? String(source.comment || '') : '';
     state.annotationDrafts[state.currentPath] = {
       paper: state.currentPath, id: id, quote: source.quote, prefix: source.prefix || '', suffix: source.suffix || '',
+      source: source.source || 'markdown', pdfAnchor: source.pdfAnchor ? JSON.parse(JSON.stringify(source.pdfAnchor)) : null,
       originalComment: original, comment: original
     };
     renderAnnotationEditor(true);
@@ -923,8 +952,8 @@
   function locateAnnotationDraft() {
     var draft = state.annotationDraft;
     if (!draft || !state.currentPaper || state.currentPath !== draft.paper) return;
-    if (state.currentPaper.review.markdownCollapsed) setMarkdownCollapsed(false);
     if (draft.id) { focusAnnotation(draft.id); return; }
+    if (usePdfForLocation()) { locateInPdf(draft); return; }
     var nodes = collectTextNodes(), full = nodes.map(function (item) { return item.node.nodeValue; }).join('');
     var start = chooseMatch(full, draft);
     var target = nodes.find(function (item) { return item.start <= start && item.start + item.node.nodeValue.length > start; });
@@ -953,6 +982,7 @@
         id: makeId(), quote: draft.quote, prefix: draft.prefix, suffix: draft.suffix,
         comment: comment, kind: 'note', createdAt: now, updatedAt: now
       };
+      annotation.source = draft.source || 'markdown'; annotation.pdfAnchor = draft.pdfAnchor || null;
       state.currentPaper.review.annotations.push(annotation);
       applyOneHighlight(annotation);
     }
@@ -994,14 +1024,15 @@
 
   function renderAnnotations() {
     renderAnnotationEditor(false);
+    syncPdfAnnotations();
     var annotations = state.currentPaper ? state.currentPaper.review.annotations : [];
-    var pdfOnlyWithoutAnnotations = state.currentPaper && !state.currentPaper.hasMarkdown && !annotations.length;
+    var pdfOnlyWithoutAnnotations = false;
     els.notesPanel.classList.toggle('only-paper-note', !!pdfOnlyWithoutAnnotations);
     els.annotationCount.textContent = pdfOnlyWithoutAnnotations ? '整篇论文笔记' : annotations.length + ' 条批注';
     els.annotationListHeading.classList.toggle('hidden', !!pdfOnlyWithoutAnnotations);
     els.annotationList.classList.toggle('hidden', !!pdfOnlyWithoutAnnotations);
     if (!annotations.length) {
-      els.annotationList.innerHTML = '<div class="annotation-empty">在 Markdown 中选择一段文字，<br>即可添加与原文绑定的批注。</div>';
+      els.annotationList.innerHTML = '<div class="annotation-empty">在 PDF 或 Markdown 中选择一段文字，<br>即可添加与原文绑定的批注或 AI 翻译。</div>';
       return;
     }
     els.annotationList.innerHTML = annotations.map(function (annotation) {
@@ -1010,7 +1041,7 @@
         '<div class="annotation-quote" title="定位到原文">“' + escapeHtml(annotation.quote) + '”</div>' +
         '<div class="annotation-comment">' + escapeHtml(annotation.comment) + '</div>' +
         '<div class="annotation-card-footer"><span>' + formatDate(annotation.updatedAt || annotation.createdAt) + '</span>' +
-        '<div class="annotation-card-actions">' + (state.currentPaper.hasMarkdown ? '<button data-action="note" title="将原文和批注加入整篇笔记：编辑时插入光标处，阅读时追加到文末">加入笔记</button>' : '') + '<button data-action="edit">修改</button><button data-action="delete">删除</button></div></div></article>';
+        '<div class="annotation-card-actions"><button data-action="note" title="将原文和批注加入整篇笔记：编辑时插入光标处，阅读时追加到文末">加入笔记</button><button data-action="edit">修改</button><button data-action="delete">删除</button></div></div></article>';
     }).join('');
     Array.prototype.forEach.call(els.annotationList.querySelectorAll('.annotation-card'), function (card) {
       var id = card.getAttribute('data-id');
@@ -1132,15 +1163,25 @@
   function commonStart(a, b) { var i = 0; while (i < a.length && i < b.length && a[i] === b[i]) i++; return i; }
   function commonEnd(a, b) { var i = 0; while (i < a.length && i < b.length && a[a.length - 1 - i] === b[b.length - 1 - i]) i++; return i; }
 
+  function showAnnotationCard(id) {
+    var card = els.annotationList.querySelector('.annotation-card[data-id="' + cssEscape(id) + '"]');
+    if (!card) return;
+    setNotesCollapsed(false);
+    Array.prototype.forEach.call(els.annotationList.querySelectorAll('.annotation-card.active'), function (element) { element.classList.remove('active'); });
+    card.classList.add('active');
+    card.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'nearest' });
+  }
+
   function focusAnnotation(id) {
-    if (state.currentPaper && state.currentPaper.review.markdownCollapsed) setMarkdownCollapsed(false);
     setNotesCollapsed(false);
     Array.prototype.forEach.call(document.querySelectorAll('.annotation-highlight,.annotation-card'), function (element) { element.classList.remove('active'); });
     var marks = els.markdownContent.querySelectorAll('mark[data-annotation-id="' + cssEscape(id) + '"]');
     var card = els.annotationList.querySelector('.annotation-card[data-id="' + cssEscape(id) + '"]');
     Array.prototype.forEach.call(marks, function (mark) { mark.classList.add('active'); });
     if (card) card.classList.add('active');
+    if (usePdfForLocation()) { var annotation = findAnnotation(id); if (annotation) locateInPdf(annotation); return; }
     if (marks.length) marks[0].scrollIntoView({ behavior: 'smooth', block: 'center' });
+    else showToast('当前 Markdown 中未匹配到这段原文，可展开 PDF 后定位。');
   }
 
   function openMetadataDialog() {
@@ -1538,6 +1579,12 @@
     button.addEventListener('click', function () { setStatus(button.getAttribute('data-status')); });
   });
   els.markdownContent.addEventListener('mouseup', function () { setTimeout(captureSelection, 0); });
+  var searchRefreshTimer;
+  window.addEventListener('paperbench-search-updated', function () {
+    if (!state.query.trim()) return;
+    clearTimeout(searchRefreshTimer); searchRefreshTimer = setTimeout(renderTree, 150);
+  });
+  els.markdownContent.addEventListener('pointerdown', function () { state.readingSource = 'markdown'; });
   els.markdownContent.addEventListener('click', function (event) {
     var image = event.target.closest && event.target.closest('img');
     if (image && els.markdownContent.contains(image)) selectMarkdownImage(image);
@@ -1600,19 +1647,63 @@
     api('/api/paper/open-folder', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ path: state.currentPath }) })
       .catch(function (error) { showToast('打开论文目录失败：' + error.message); });
   });
-  els.mineruParse.addEventListener('click', function () {
-    if (!state.currentPaper || state.currentPaper.hasMarkdown) return;
-    if (els.mineruParse.dataset.available !== 'true') {
-      api('/api/local-mineru/select', { method: 'POST' }).then(refreshLocalMinerU)
-        .catch(function (error) { showToast(error.message); });
-      return;
-    }
-    var path = state.currentPaper.path;
-    delete mineruCompletedSeen[path];
-    els.mineruParse.disabled = true;
-    api('/api/local-mineru/start', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ paper: path }) })
-      .then(refreshLocalMinerU)
+  var pdfTextBusy = false;
+  var pendingPdfCapture = null;
+  var parseMenu = document.getElementById('pdfParseMenu');
+  function closeParseMenu() { parseMenu.hidden = true; els.mineruParse.setAttribute('aria-expanded', 'false'); }
+  els.mineruParse.addEventListener('click', async function () {
+    if (!state.currentPaper) return;
+    if (!parseMenu.hidden) { closeParseMenu(); return; }
+    var path = state.currentPath;
+    document.getElementById('pdfParseCleanup').checked = false;
+    try {
+      var status = await api('/api/pdf-processing/status?paper=' + encodeURIComponent(path));
+      if (path !== state.currentPath) return;
+      document.getElementById('pdfParseCleanupRow').hidden = !status.hasText && !status.hasFine;
+      parseMenu.hidden = false; els.mineruParse.setAttribute('aria-expanded', 'true'); refreshLocalMinerU();
+    } catch (error) { showToast(error.message); }
+  });
+  document.addEventListener('click', function (e) { if (!els.mineruParseBar.contains(e.target)) closeParseMenu(); });
+  document.addEventListener('keydown', function (e) { if (e.key === 'Escape') closeParseMenu(); });
+  document.getElementById('pdfParseConfigure').onclick = function () {
+    closeParseMenu(); api('/api/local-mineru/select', { method: 'POST' }).then(refreshLocalMinerU).catch(function (e) { showToast(e.message); });
+  };
+  document.getElementById('pdfParseFine').onclick = function () {
+    var path = state.currentPath, cleanup = document.getElementById('pdfParseCleanup').checked;
+    closeParseMenu(); delete mineruCompletedSeen[path]; els.mineruParse.disabled = true;
+    api('/api/local-mineru/start', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ paper: path, removePrevious: String(cleanup) }) })
+      .then(function (result) {
+        if (result.reused) {
+          if (path === state.currentPath) window.AILiteratureChat.setPreferredText(result.preferredTextPath);
+          showToast(result.message); loadTree(true);
+        } else refreshLocalMinerU();
+      })
       .catch(function (error) { showToast(error.message); refreshLocalMinerU(); });
+  };
+  document.getElementById('pdfParseText').onclick = async function () {
+    if (pdfTextBusy || !state.currentPaper) return;
+    var path = state.currentPath, cleanup = document.getElementById('pdfParseCleanup').checked;
+    closeParseMenu(); pdfTextBusy = true; els.mineruParse.disabled = true;
+    els.mineruParse.textContent = '提取中…'; refreshLocalMinerU();
+    try {
+      var status = await api('/api/pdf-processing/status?paper=' + encodeURIComponent(path));
+      if (!window.PaperBenchPdfProcessing) throw new Error('文本提取组件正在加载，请稍后重试');
+      var text = await window.PaperBenchPdfProcessing.extract(path, function (page, count) {
+        if (path !== state.currentPath) throw new Error('已切换论文，本次提取已取消');
+        if (path === state.currentPath) els.mineruParse.textContent = '提取 ' + page + '/' + count;
+      });
+      if (path !== state.currentPath) throw new Error('已切换论文，本次提取未保存');
+      var result = await api('/api/pdf-processing/text', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ paper: path, signature: status.signature, text: text, removePrevious: cleanup }) });
+      if (path === state.currentPath) window.AILiteratureChat.setPreferredText(result.preferredTextPath);
+      showToast(result.message); delete mineruCompletedSeen[path]; await loadTree(true);
+    } catch (error) { showToast(error.message); }
+    finally { pdfTextBusy = false; refreshLocalMinerU(); }
+  };
+  window.addEventListener('paperbench-request-pdf-capture', function () {
+    if (!state.currentPaper) { showToast('请先打开论文'); return; }
+    pendingPdfCapture = state.currentPath; setPdfCollapsed(false);
+    if (state.pdfReady) { pendingPdfCapture = null; pdfCommand('capture'); }
+    els.pdfFrame.focus();
   });
   els.manageAttachments.addEventListener('click', openAttachmentDialog);
   var openPaperRecycle;
@@ -1806,6 +1897,6 @@
   });
   loadTree(false);
   setInterval(function () {
-    if (state.currentPaper && !state.currentPaper.hasMarkdown && !document.hidden) refreshLocalMinerU();
+    if (state.currentPaper && els.mineruParse.disabled && !pdfTextBusy && !document.hidden) refreshLocalMinerU();
   }, 3000);
 })();

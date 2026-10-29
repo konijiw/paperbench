@@ -132,7 +132,8 @@ internal static partial class MinerULibraryReview
             if (directory != root && FindPdf(directory) != null)
             {
                 MaterialSource source = MaterialReadSource(root, directory);
-                papers.Add(new { path = source.path, title = source.title, tags = source.review.tags, hasMarkdown = File.Exists(Path.Combine(directory, "markdown.md")),
+                papers.Add(new { path = source.path, title = source.title, name = Path.GetFileName(directory),
+                    parsedTitle = ReadParsedTitle(Path.Combine(directory, "markdown.md")), tags = source.review.tags, hasMarkdown = File.Exists(Path.Combine(directory, "markdown.md")),
                     annotations = source.review.annotations.Count, hasNote = !String.IsNullOrWhiteSpace(source.review.note), hasCitation = source.citation != null && !String.IsNullOrWhiteSpace(source.citation.bib), warnings = source.warnings });
             }
             foreach (string child in Directory.GetDirectories(directory).OrderBy(x => x, StringComparer.CurrentCultureIgnoreCase))
@@ -146,7 +147,7 @@ internal static partial class MinerULibraryReview
         }
         catch (Exception ex) { warnings.Add("无法扫描 " + MakeRelative(root, directory) + "：" + ex.Message); }
     }
-    private static string MaterialChooseFolder(IntPtr owner)
+    private static string MaterialChooseFolder(IntPtr owner, string title = null)
     {
         if (!Monitor.TryEnter(ExportFolderDialogGate)) throw new InvalidOperationException("已有目录选择窗口打开，请先完成或取消该窗口。");
         try
@@ -158,7 +159,7 @@ internal static partial class MinerULibraryReview
             {
                 try
                 {
-                    selected = ChooseModernExportFolder(owner);
+                    selected = ChooseModernExportFolder(owner, title);
                 }
                 catch (Exception ex) { failure = ex; }
                 finally { done.Set(); }

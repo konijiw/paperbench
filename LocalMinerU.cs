@@ -94,30 +94,8 @@ internal static partial class MinerULibraryReview
 
     private static void SelectLocalMinerU(Stream stream)
     {
-        string selected = null;
-        Exception failure = null;
-        using (ManualResetEvent finished = new ManualResetEvent(false))
-        {
-            Thread dialogThread = new Thread(delegate()
-            {
-                try
-                {
-                    using (FolderBrowserDialog dialog = new FolderBrowserDialog())
-                    {
-                        dialog.Description = "选择 MinerU 安装目录或官方安装时创建的 .venv 文件夹";
-                        dialog.ShowNewFolderButton = false;
-                        if (dialog.ShowDialog() == DialogResult.OK) selected = dialog.SelectedPath;
-                    }
-                }
-                catch (Exception ex) { failure = ex; }
-                finally { finished.Set(); }
-            });
-            dialogThread.SetApartmentState(ApartmentState.STA);
-            dialogThread.IsBackground = true;
-            dialogThread.Start();
-            finished.WaitOne();
-        }
-        if (failure != null) throw failure;
+        IntPtr owner = GetForegroundWindow();
+        string selected = MaterialChooseFolder(owner, "选择 MinerU 安装目录或 .venv 文件夹");
         if (selected != null)
         {
             string root, python, kit; bool legacy;
@@ -130,14 +108,32 @@ internal static partial class MinerULibraryReview
 
     private static void StartLocalMinerU(Stream stream, string body)
     {
+        lock (PdfProcessingLock) StartLocalMinerUCore(stream, body);
+    }
+
+    private static void StartLocalMinerUCore(Stream stream, string body)
+    {
         Dictionary<string, string> request = Json.Deserialize<Dictionary<string, string>>(body);
         string paper = request == null || !request.ContainsKey("paper") ? null : request["paper"];
         string directory = ResolvePaper(paper);
-        if (File.Exists(Path.Combine(directory, "markdown.md"))) throw new InvalidOperationException("这篇论文已经有 Markdown，无需重新解析。");
+        lock (MinerUJobLock)
+        {
+            MinerUJob current;
+            if (MinerUJobs.TryGetValue(paper, out current) && current.state == "running") throw new InvalidOperationException("这篇论文已经在解析中。");
+        }
+        bool removePrevious = request.ContainsKey("removePrevious") && request["removePrevious"] == "true";
+        var manifest = LoadParseManifest(directory);
+        if (File.Exists(Path.Combine(directory, "markdown.md")))
+        {
+            string warning = CompleteParsing(directory, manifest, "fine", manifest.fine == null ? new[] { "markdown.md", "structured_content.json" } : manifest.fine.Keys.ToArray(), removePrevious, true);
+            InterlockedIncrementLibrary();
+            WriteJson(stream, new { started = false, reused = true, preferredTextPath = PreferredPaperText(directory), message = "已使用现有精细解析结果" + warning }); return;
+        }
         string pdf = FindPdf(directory);
         if (pdf == null) throw new FileNotFoundException("论文 PDF 不存在。", directory);
         string root = FindLocalMinerU();
         if (root == null) throw new InvalidOperationException("未找到可用的本机 MinerU，请选择安装目录。");
+        AtomicWrite(ParseManifestPath(directory), Json.Serialize(manifest));
         lock (MinerUJobLock)
         {
             MinerUJob existing;
@@ -146,14 +142,14 @@ internal static partial class MinerULibraryReview
             MinerUJobs[paper] = new MinerUJob();
             MinerUCleanupGeneration++;
         }
-        Thread worker = new Thread(delegate() { RunLocalMinerU(root, paper, directory, pdf); });
+        Thread worker = new Thread(delegate() { RunLocalMinerU(root, paper, directory, pdf, removePrevious); });
         // Let an in-flight parse finish even if the reading window closes.
         worker.IsBackground = false;
         worker.Start();
         WriteJson(stream, new { started = true });
     }
 
-    private static void RunLocalMinerU(string root, string paper, string directory, string pdf)
+    private static void RunLocalMinerU(string root, string paper, string directory, string pdf, bool removePrevious)
     {
         string staging = Path.Combine(StateDirectory, "mineru-staging", Guid.NewGuid().ToString("N"));
         string helper = staging + ".py";
@@ -202,19 +198,40 @@ internal static partial class MinerULibraryReview
                 throw new InvalidDataException("MinerU 返回的结果缺少 Markdown 或结构化内容。");
             if (!Directory.Exists(directory) || !File.Exists(pdf) || File.Exists(Path.Combine(directory, "markdown.md")))
                 throw new InvalidOperationException("解析期间论文目录已变化，未覆盖原有文件。");
-            string[] files = Directory.GetFiles(staging).Where(x => !String.Equals(Path.GetFileName(x), Path.GetFileName(pdf), StringComparison.OrdinalIgnoreCase)).ToArray();
-            string[] dirs = Directory.GetDirectories(staging);
-            foreach (string file in files)
-                if (File.Exists(Path.Combine(directory, Path.GetFileName(file)))) throw new IOException("论文目录已有同名文件：" + Path.GetFileName(file));
-            foreach (string dir in dirs)
-                if (Directory.Exists(Path.Combine(directory, Path.GetFileName(dir)))) throw new IOException("论文目录已有同名文件夹：" + Path.GetFileName(dir));
-            foreach (string dir in dirs) Directory.Move(dir, Path.Combine(directory, Path.GetFileName(dir)));
-            foreach (string file in files.Where(x => !String.Equals(Path.GetFileName(x), "markdown.md", StringComparison.OrdinalIgnoreCase)))
-                File.Move(file, Path.Combine(directory, Path.GetFileName(file)));
-            File.Move(Path.Combine(staging, "markdown.md"), Path.Combine(directory, "markdown.md"));
+            string[] generated = Directory.GetFiles(staging, "*", SearchOption.AllDirectories)
+                .Select(x => MakeRelative(staging, x).Replace('\\', '/')).Where(x => !x.EndsWith(".pdf", StringComparison.OrdinalIgnoreCase)).ToArray();
+            // An old parse may leave an images directory containing personal
+            // files. Merge new files only after checking every destination.
+            string[] publish = Directory.GetFiles(staging, "*", SearchOption.AllDirectories)
+                .Where(x => !String.Equals(Path.GetFileName(x), Path.GetFileName(pdf), StringComparison.OrdinalIgnoreCase)).ToArray();
+            foreach (string file in publish)
+            {
+                string target = Path.Combine(directory, MakeRelative(staging, file)); MaterialNoLinks(target);
+                if (File.Exists(target) || Directory.Exists(target)) throw new IOException("论文目录已有同名文件：" + MakeRelative(staging, file));
+            }
+            var published = new List<string>();
+            try
+            {
+                foreach (string file in publish.OrderBy(x => String.Equals(Path.GetFileName(x), "markdown.md", StringComparison.OrdinalIgnoreCase) ? 1 : 0))
+                {
+                    string target = Path.Combine(directory, MakeRelative(staging, file));
+                    Directory.CreateDirectory(Path.GetDirectoryName(target)); File.Move(file, target); published.Add(target);
+                }
+            }
+            catch
+            {
+                foreach (string target in published)
+                {
+                    string original = Path.Combine(staging, MakeRelative(directory, target));
+                    Directory.CreateDirectory(Path.GetDirectoryName(original)); File.Move(target, original);
+                }
+                throw;
+            }
+            string cleanupWarning;
+            lock (PdfProcessingLock) cleanupWarning = CompleteParsing(directory, LoadParseManifest(directory), "fine", generated, removePrevious);
             string tier = "";
             try { Dictionary<string, object> result = Json.Deserialize<Dictionary<string, object>>(output); if (result != null && result.ContainsKey("tier")) tier = Convert.ToString(result["tier"]); } catch { }
-            lock (MinerUJobLock) { MinerUJobs[paper].state = "completed"; MinerUJobs[paper].tier = tier; MinerUJobs[paper].message = "解析完成，已在原论文目录加入 Markdown 和图片。"; }
+            lock (MinerUJobLock) { MinerUJobs[paper].state = "completed"; MinerUJobs[paper].tier = tier; MinerUJobs[paper].message = "解析完成，已在原论文目录加入 Markdown 和图片。" + cleanupWarning; }
             Interlocked.Increment(ref LibraryRevision);
         }
         catch (Exception ex)

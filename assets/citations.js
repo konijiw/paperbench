@@ -272,6 +272,7 @@
           <div class="citation-batch-toolbar"><button id="citeRefresh" data-work class="button secondary" type="button">读取已保存文献</button><span id="citeBatchFormat" class="citation-format-note">BibTeX</span></div>
           <div class="citation-row"><label class="citation-tag-control">按标签选择<select id="citeTag" disabled><option value="">全部已保存文献</option></select></label><button id="citeSelectAll" data-work class="button secondary" type="button">全选当前列表</button><button id="citeSelectNone" data-work class="button secondary" type="button">取消全选</button></div>
           <p class="attachment-hint">选择标签后，自动勾选该标签下已保存的文献，仍可取消个别条目。切换标签会重新选择；未保存书目信息的论文需先识别后再读取。</p>
+          <input id="citeLibrarySearch" data-work type="search" class="citation-library-search" placeholder="搜索标题、标签、目录或引用键；保留已有勾选" aria-label="搜索待导出的引用">
           <div id="citeLibraryStatus" class="citation-library-status" role="status"></div><div id="citeLibrary"></div>
           <div class="citation-batch-footer"><span id="citeSelectionCount">尚未选择文献</span><button id="citeExportSelected" data-work class="button accent" type="button">导出勾选文献</button></div>
         </div>
@@ -369,6 +370,22 @@
       return navigator.clipboard.writeText(command).then(function () { message('已复制：' + command); }).catch(function () { message('复制失败，请手动复制：' + command); });
     }); }); };
     $('citeExport').onclick = function () { run(function () { return save().then(function (e) { download(serialize(e, $('citeMode').value)); }); }); };
+    function filterCitationLibrary() {
+      var query = $('citeLibrarySearch').value, rows = Array.from($('citeLibrary').children);
+      var papers = rows.map(function (row) {
+        var record = row.citationRecord, fields = {};
+        try { fields = parseBib(record.bib).fields; } catch (_) {}
+        return Object.assign({}, record, { searchFields: [fields.title, fields.author, record.key], row: row });
+      });
+      rows.forEach(function (row) { row.style.display = 'none'; });
+      var matches = window.PaperSearch.filter(papers, query, true);
+      matches.forEach(function (paper) { paper.row.style.display = ''; $('citeLibrary').appendChild(paper.row); });
+      $('citeLibraryStatus').textContent = '当前显示 ' + matches.length + ' / ' + rows.length + ' 条已保存文献' + (query.trim() ? '；搜索保留已有勾选。' : '，可按标签选择或手动勾选。');
+    }
+    $('citeLibrarySearch').oninput = filterCitationLibrary;
+    window.addEventListener('paperbench-search-updated', function () {
+      if (dialog.open && $('citeLibrarySearch').value.trim()) filterCitationLibrary();
+    });
     function renderCitationLibrary(selectTag) {
       var tag = $('citeTag').value;
       var records = citationRecords.filter(function (r) {
@@ -378,7 +395,7 @@
       records.forEach(function (r) {
         var label = document.createElement('label'), box = document.createElement('input'); box.type = 'checkbox'; box.dataset.bib = r.bib; box.dataset.paper = r.paper;
         box.checked = !!selectTag && !!tag;
-        label.className = 'citation-choice'; label.appendChild(box);
+        label.className = 'citation-choice'; label.citationRecord = r; label.appendChild(box);
         var title; try { title = parseBib(r.bib).fields.title; } catch (_) { title = r.paper; }
         var text = document.createElement('span'); text.className = 'citation-choice-text';
         var titleText = document.createElement('span'); titleText.className = 'citation-choice-title'; titleText.textContent = title;
@@ -386,7 +403,7 @@
         text.appendChild(titleText); text.appendChild(keyText); label.appendChild(text); $('citeLibrary').appendChild(label);
       });
       updateCitationSelection();
-      $('citeLibraryStatus').textContent = tag ? '标签“' + tag + '”：' + records.length + ' 条已保存文献，已全部勾选，可按需取消。' : '已读取 ' + records.length + ' 条文献，可按标签选择或手动勾选。';
+      filterCitationLibrary();
     }
     $('citeRefresh').onclick = function () { run(function () {
       return api('/api/citations').then(function (records) {
@@ -405,11 +422,11 @@
     }); };
     $('citeTag').onchange = function () { renderCitationLibrary(true); };
     $('citeSelectAll').onclick = function () {
-      $('citeLibrary').querySelectorAll('input[type=checkbox]').forEach(function (box) { box.checked = true; });
+      $('citeLibrary').querySelectorAll('input[type=checkbox]').forEach(function (box) { if (box.parentElement.style.display !== 'none') box.checked = true; });
       updateCitationSelection(); $('citeLibraryStatus').textContent = '已全选当前列表。';
     };
     $('citeSelectNone').onclick = function () {
-      $('citeLibrary').querySelectorAll('input[type=checkbox]').forEach(function (box) { box.checked = false; });
+      $('citeLibrary').querySelectorAll('input[type=checkbox]').forEach(function (box) { if (box.parentElement.style.display !== 'none') box.checked = false; });
       updateCitationSelection(); $('citeLibraryStatus').textContent = '已取消当前列表的全部勾选。';
     };
     $('citeExportSelected').onclick = function () { run(function () {
@@ -427,7 +444,7 @@
     }
     $('citeManual').open = false;
     window.LiteratureWordCitations.reset();
-    citationRecords = []; batchLoaded = false; $('citeBatch').open = false; $('citeTag').replaceChildren();
+    citationRecords = []; batchLoaded = false; $('citeLibrarySearch').value = ''; $('citeBatch').open = false; $('citeTag').replaceChildren();
     var allTags = document.createElement('option'); allTags.value = ''; allTags.textContent = '全部已保存文献'; $('citeTag').appendChild(allTags); $('citeTag').disabled = true;
     activePaper = paper; savedBib = ''; savedKey = ''; previousBib = ''; previousKey = ''; renderSavedResult(); $('citeBib').value = ''; $('citeKey').value = ''; $('citeDoi').value = '';
     $('citePreview').textContent = ''; $('citeCandidates').replaceChildren(); $('citeResults').replaceChildren(); $('citeLibrary').replaceChildren(); $('citeLibraryStatus').textContent = ''; $('citeTitle').value = ''; $('citeSearchSource').value = 'crossref';

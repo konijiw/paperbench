@@ -2125,3 +2125,7 @@ display: flex;
 }
 .zcs-settings-navigation:hover { background: var(--zcs-hover, color-mix(in srgb, CanvasText 5%, transparent)); }
 .zcs-settings-navigation:focus-visible { outline: 2px solid Highlight; outline-offset: -3px; }
+
+/* A centered vector arrow keeps the send affordance legible across fonts. */
+.zcs-send-button{width:36px!important;min-width:36px!important;max-width:36px;height:36px!important;min-height:36px!important;flex-basis:36px}
+.zcs-send-button>svg{width:25px;height:25px;display:block}

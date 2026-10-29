@@ -104,8 +104,10 @@ internal static partial class MinerULibraryReview
     {
         // Read current paper tags rather than copying them into bibliography records.
         return ListCitations().Select(record => {
-            ReviewRecord review = LoadReview(ResolvePaper(record.paper));
-            return (object)new { paper = record.paper, bib = record.bib, key = record.key,
+            string directory = ResolvePaper(record.paper);
+            ReviewRecord review = LoadReview(directory);
+            return (object)new { paper = record.paper, path = record.paper, title = review.title, name = Path.GetFileName(directory),
+                parsedTitle = ReadParsedTitle(Path.Combine(directory, "markdown.md")), hasMarkdown = File.Exists(Path.Combine(directory, "markdown.md")), bib = record.bib, key = record.key,
                 tags = review.tags ?? new List<string>() };
         }).ToArray();
     }

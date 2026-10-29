@@ -118,7 +118,7 @@
 .reading-layout.pdf-only .pdf-pane{grid-column:1;width:auto}
 .reading-layout.pdf-only .reader-divider,.reading-layout.pdf-only .markdown-pane{display:none}
 .reading-layout.pdf-only #collapsePdf{display:none}
-.pdf-pane{position:relative}.mineru-parse-bar{position:absolute;z-index:5;right:46px;bottom:12px}.mineru-parse-bar .button{box-shadow:0 3px 12px #23364d35;white-space:nowrap}.reading-layout:not(.pdf-only) .mineru-parse-bar{display:none}
+.pdf-pane{position:relative}.pdf-pane .pane-label #pdfName{margin-left:auto;min-width:0;max-width:55%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.mineru-parse-bar{flex:none;margin-left:10px;text-transform:none;letter-spacing:normal}.mineru-parse-bar button{white-space:nowrap;color:var(--muted)}.mineru-parse-bar button:disabled{cursor:default;opacity:.55}.reading-layout:not(.pdf-only) .mineru-parse-bar{display:none}
 .header-actions{align-items:center}.third-party-credit{display:flex;flex:0 0 190px;flex-direction:column;gap:2px;width:190px;margin:0 4px 0 0;font-size:10px;line-height:1.35;color:#d5deeb;white-space:normal;overflow-wrap:anywhere}.third-party-credit a{color:inherit;text-decoration:underline;text-underline-offset:2px}.third-party-credit a:hover{color:#fff}.third-party-credit a:focus-visible{outline:2px solid #b8d4ff;outline-offset:2px}
 .paper-toolbar{height:auto;min-height:44px;flex-wrap:wrap;gap:6px 10px;padding:6px 18px}
 .paper-toolbar .paper-identity{flex:1 1 180px;min-width:110px}
@@ -243,6 +243,8 @@
 
 /* Low-frequency paper actions stay out of the reading toolbar's main flow. */
 #recyclePaper{flex:none;color:#a34c40}
+.button.recycle-icon{display:inline-flex;align-items:center;justify-content:center;width:32px;height:32px;padding:6px;flex:none}
+.recycle-icon svg{width:17px;height:17px;fill:none;stroke:currentColor;stroke-width:1.6;stroke-linecap:round;stroke-linejoin:round;pointer-events:none}
 .paper-recycle-dialog{width:min(520px,calc(100vw - 40px));max-height:85vh;overflow:auto;box-sizing:border-box;border:1px solid #dce2e9;border-radius:14px;padding:25px;color:#28374a;background:#fff;box-shadow:0 18px 70px #192c4838}
 .paper-recycle-dialog::backdrop{background:#182d4959}
 .paper-recycle-dialog h2{margin:0 0 15px;font-size:19px}
@@ -259,3 +261,38 @@
 #explorerPanel{position:relative}#explorerPanel>.pdf-drop-overlay{position:absolute;inset:6px;z-index:15;border-radius:9px;background:#fff6f0e8}#explorerPanel>.pdf-drop-overlay>div{max-width:100%;padding:18px 10px;text-align:center;gap:8px}#explorerPanel>.pdf-drop-overlay strong{font-size:14px}#explorerPanel>.pdf-drop-overlay span{font-size:11px}
 .paper-note-footer-actions{display:flex;align-items:center;gap:12px;flex-wrap:wrap}
 .material-chat-option{display:flex;align-items:flex-start;gap:9px;margin:12px 0 16px;padding:11px 12px;border:1px solid var(--line);border-radius:8px;background:var(--surface-2);cursor:pointer}.material-chat-option>input{flex:none;width:15px;height:15px;margin:2px 0 0;accent-color:var(--blue)}.material-chat-option>span{display:flex;flex-direction:column;gap:4px;min-width:0}.material-chat-option strong{font-size:12px;font-weight:600}.material-chat-option small{font-size:11px;line-height:1.6;color:var(--muted)}
+
+.citation-dialog .citation-library-search{display:block;width:100%;margin:10px 0;box-sizing:border-box}
+/* Quiet, paper-toned application header. */
+.app-header{background:#faf8f4;color:#353b42;border-bottom-color:#e2ded7;box-shadow:0 1px 3px #34302a05}
+.app-header .brand{gap:10px}
+.app-header .brand-mark{width:30px;height:34px;background:none;border-radius:0;box-shadow:none;color:#b87959}
+.app-header .brand-mark svg{width:30px;height:32px;stroke:currentColor;stroke-width:1.5;stroke-linecap:round;stroke-linejoin:round}
+.app-header .brand strong{font-size:17px;line-height:22px;font-weight:650;letter-spacing:-.45px;color:#343b40}
+.app-header .brand small{font-size:10px;color:#85817a;line-height:16px}
+.app-header .header-controls{scrollbar-color:#d4cec5 transparent}
+.app-header .header-group{border-right-color:#e2ded7}
+.app-header .header-panel-toggle,.app-header .button{height:36px;border-radius:7px;font-size:12px;box-shadow:none;flex-shrink:0}
+.app-header .header-panel-toggle,.app-header .button.secondary,.app-header .icon-button{background:#fffdf9;border:1px solid #dfdbd3;color:#605e58}
+.app-header .header-panel-toggle:hover,.app-header .button.secondary:hover,.app-header .icon-button:hover{background:#f0ece5;border-color:#cbc4b9;color:#343b40}
+.app-header .header-panel-toggle[aria-pressed="true"]{background:#ece7de;border-color:#d5cdbf;color:#45443e}
+.app-header .button.translate-button{background:#edf2ec;border-color:#d5dfd2;color:#526a50}
+.app-header .button.translate-button:hover{background:#e2ebdf;border-color:#c0d0bb}
+.app-header .button.accent{background:#c67650;border-color:#c67650;color:#fff}
+.app-header .button.accent:hover{background:#b66a46;border-color:#b66a46}
+.app-header .save-state{color:#85817a}.app-header .save-state.saving{color:#9c743d}.app-header .save-state.error{color:#b64f42}
+.app-header .third-party-credit{color:#89847b}.app-header .third-party-credit a:hover{color:#6e5849}
+.app-header button:focus-visible,.app-header a:focus-visible{outline:2px solid #b58a69;outline-offset:2px}
+
+.mineru-parse-bar{position:relative}
+.pdf-parse-menu{position:absolute;right:0;top:calc(100% + 6px);width:260px;padding:6px;background:var(--panel,#fff);color:var(--text,#253449);border:1px solid var(--border,#d7dee8);border-radius:8px;box-shadow:0 5px 20px #14253b24;z-index:60;font-size:12px;white-space:normal}
+.pdf-parse-menu[hidden]{display:none}
+.pdf-parse-menu>button{display:block;width:100%;text-align:left;border:0;border-radius:5px;background:transparent;padding:9px 10px;color:inherit;cursor:pointer;font:inherit}
+.pdf-parse-menu>button:hover:not(:disabled){background:#edf3fa}
+.pdf-parse-menu>button:disabled{opacity:.4;cursor:not-allowed}
+.pdf-parse-menu small{display:block;font-size:11px;font-weight:400;color:#718096;margin-top:3px}
+.pdf-parse-menu>label{display:flex;align-items:center;gap:5px;padding:8px 6px 4px;font-size:11px}
+.pdf-parse-menu>label[hidden]{display:none}
+.pdf-parse-menu>.pdf-parse-configure{padding:6px 9px;font-size:11px;color:#718096}
+
+.reading-layout:not(.pdf-only) .mineru-parse-bar:not(.hidden){display:inline-block}

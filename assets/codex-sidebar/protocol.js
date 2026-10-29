@@ -457,6 +457,7 @@
       if (row.url) lines.push(`URL: ${row.url}`);
       if (row.abstract) lines.push(`Abstract:\n${row.abstract}`);
       if (row.pdfPath) lines.push(`Local PDF: ${row.pdfPath}`);
+      if (row.preferredTextPath) lines.push(`Preferred paper text (selected parsing mode): ${row.preferredTextPath}`);
     }
     for (const selection of selections) {
       const page = selection.pageLabel || selection.pageNumber || "?";

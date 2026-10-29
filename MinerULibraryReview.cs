@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
@@ -164,8 +164,10 @@ internal static partial class MinerULibraryReview
                 Uri uri = new Uri("http://127.0.0.1" + request.target);
                 string path = Uri.UnescapeDataString(uri.AbsolutePath);
                 var query = HttpUtility.ParseQueryString(uri.Query);
+                if (path.StartsWith("/api/compatible/", StringComparison.Ordinal)) ValidateApiChannelRequest(request);
 
                 if (path == "/") WriteResource(stream, "AppHtml", "text/html; charset=utf-8");
+                else if (path.StartsWith("/pdf-reader/", StringComparison.Ordinal)) ServePdfReader(stream, path);
                 else if (path == "/licenses") WriteResource(stream, "LicenseNotices", "text/plain; charset=utf-8");
                 else if (path == "/third-party/citeproc.js") WriteResource(stream, "CiteprocSource", "text/plain; charset=utf-8");
                 else if (path == "/third-party/Build.ps1") WriteResource(stream, "BuildSource", "text/plain; charset=utf-8");
@@ -182,9 +184,11 @@ internal static partial class MinerULibraryReview
                 else if (path == "/assets/zcs/katex.js") WriteResource(stream, "ZcsKatexJs", "application/javascript; charset=utf-8");
                 else if (path == "/assets/zcs/katex.css") WriteResource(stream, "ZcsKatexCss", "text/css; charset=utf-8");
                 else if (path == "/assets/zcs/ai-client.js") WriteResource(stream, "AiClientJs", "application/javascript; charset=utf-8");
+                else if (path == "/assets/compatible-api.js") WriteResource(stream, "CompatibleApiJs", "application/javascript; charset=utf-8");
                 else if (path == "/assets/zcs/ai-chat.js") WriteResource(stream, "AiChatJs", "application/javascript; charset=utf-8");
                 else if (path.StartsWith("/assets/zcs/fonts/", StringComparison.Ordinal))
                     WriteResource(stream, "ZcsFont_" + Path.GetFileName(path), "font/woff2");
+                else if (path == "/assets/paper-search.js") WriteResource(stream, "PaperSearchJs", "application/javascript; charset=utf-8");
                 else if (path == "/assets/citations.js") WriteResource(stream, "CitationsJs", "application/javascript; charset=utf-8");
                 else if (path == "/assets/word-citations.js") WriteResource(stream, "WordCitationsJs", "application/javascript; charset=utf-8");
                 else if (path == "/assets/paper-notes.js") WriteResource(stream, "PaperNotesJs", "application/javascript; charset=utf-8");
@@ -197,6 +201,8 @@ internal static partial class MinerULibraryReview
                 else if (path == "/api/material-export/status") WriteJson(stream, MaterialExportStatus(query["id"]));
                 else if (path == "/api/material-export/open" && request.method == "POST") OpenMaterialExportFolder(stream, request.body);
                 else if (path == "/api/tree") WriteJson(stream, BuildTreeResponse());
+                else if (path == "/api/pdf-processing/status") WriteJson(stream, PdfProcessingStatus(query["paper"]));
+                else if (path == "/api/pdf-processing/text" && request.method == "POST") SavePdfText(stream, request.body);
                 else if (path == "/api/local-mineru/status") LocalMinerUStatus(stream, query["paper"]);
                 else if (path == "/api/local-mineru/select" && request.method == "POST") SelectLocalMinerU(stream);
                 else if (path == "/api/local-mineru/start" && request.method == "POST") StartLocalMinerU(stream, request.body);
@@ -213,6 +219,9 @@ internal static partial class MinerULibraryReview
                 else if (path == "/api/duplicates/transfer-attachments" && request.method == "POST") TransferDuplicateAttachments(stream, request.body);
                 else if (path == "/api/library-revision") WriteJson(stream, new { revision = LibraryRevision });
                 else if (path == "/api/paper") WriteJson(stream, GetPaper(query["path"]));
+                else if (path == "/api/pdf-search/status" && request.method == "GET") WriteJson(stream, GetPdfSearchStatus(query["root"], query["paper"], query["known"]));
+                else if (path == "/api/pdf-search/save" && request.method == "POST") SavePdfSearch(stream, request.body);
+                else if (path == "/api/pdf-search/source" && request.method == "GET") ServePdfSearchSource(stream, query["root"], query["paper"], query["signature"], request.headers);
                 else if (path == "/api/select-root") SelectRoot(stream);
                 else if (path == "/api/papers/import-pdfs/start" && request.method == "POST") StartPdfImport(stream, request.body);
                 else if (path == "/api/papers/import-pdfs/chunk" && request.method == "POST") AppendPdfImport(stream, query["id"], query["offset"], request.bodyBytes);
@@ -231,6 +240,15 @@ internal static partial class MinerULibraryReview
                 else if (path == "/api/tags/delete" && request.method == "POST") DeleteTag(stream, request.body);
                 else if (path == "/api/tags/update" && request.method == "POST") UpdateTag(stream, request.body);
                 else if (path == "/api/ai/connect") WriteJson(stream, GetCodex().ConnectInfo());
+                else if (path == "/api/compatible/config" && request.method == "GET") WriteJson(stream, PublicApiConfig());
+                else if (path == "/api/compatible/config" && request.method == "POST") SaveApiConfig(stream, request.body);
+                else if (path == "/api/compatible/rpc" && request.method == "POST")
+                {
+                    var apiRequest = ApiSerializer().DeserializeObject(request.body);
+                    WriteJson(stream, new { result = ApiRpc(ApiText(apiRequest, "method"), ApiGet(apiRequest, "parameters")) });
+                }
+                else if (path == "/api/compatible/events" && request.method == "GET") WriteJson(stream, ReadApiEvents(ParseLong(query["after"])));
+                else if (path == "/api/compatible/translate" && request.method == "POST") WriteJson(stream, TranslateViaApi(request.body));
                 else if (path == "/api/ai/preferences" && request.method == "GET") WriteJson(stream, GetAiPreferences());
                 else if (path == "/api/ai/preferences" && request.method == "POST") SaveAiPreferences(stream, request.body);
                 else if (path == "/api/ai/presets" && request.method == "GET") WriteJson(stream, GetPaperPromptPresets());
@@ -440,6 +458,7 @@ internal static partial class MinerULibraryReview
             pdfPath = pdf,
             hasMarkdown = hasMarkdown,
             markdownPath = hasMarkdown ? Path.Combine(directory, "markdown.md") : null,
+            preferredTextPath = PreferredPaperText(directory),
             itemKey = ReviewKey(directory),
             attachmentID = StablePositiveInt(directory),
             review = review
@@ -745,7 +764,7 @@ internal static partial class MinerULibraryReview
             "includeItemContext", "paperOnlyChats", "paperThreads", "lastThreadId",
             "model", "reasoningEffort", "approvalPolicy", "approvalsReviewer", "sandbox",
             "networkAccess", "showWorkProcess", "sidebarHeight", "workingDirectory",
-            "codexPath", "codexHome"
+            "codexPath", "codexHome", "aiProvider", "apiPaperThreads", "apiLastThreadId", "apiModel", "apiReasoningEffort", "apiIncludeItemContext", "apiPaperOnlyChats"
         };
         lock (StateLock)
         {
@@ -895,7 +914,8 @@ internal static partial class MinerULibraryReview
         headers.Append("Content-Type: ").Append(contentType).Append("\r\n");
         headers.Append("Cache-Control: no-store\r\n");
         headers.Append("X-Content-Type-Options: nosniff\r\n");
-        headers.Append("Content-Security-Policy: default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self' data: blob:; worker-src 'self'; frame-src 'self'; object-src 'self'\r\n");
+        if (extra == null || !extra.ContainsKey("Content-Security-Policy"))
+            headers.Append("Content-Security-Policy: default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self' data: blob:; worker-src 'self'; frame-src 'self'; object-src 'self'\r\n");
         if (extra != null) foreach (KeyValuePair<string, string> pair in extra) headers.Append(pair.Key).Append(": ").Append(pair.Value).Append("\r\n");
         headers.Append("Connection: close\r\n\r\n");
         byte[] bytes = Encoding.ASCII.GetBytes(headers.ToString());
@@ -999,6 +1019,8 @@ internal static partial class MinerULibraryReview
         public string kind { get; set; }
         public string createdAt { get; set; }
         public string updatedAt { get; set; }
+        public string source { get; set; }
+        public PdfAnchor pdfAnchor { get; set; }
     }
 
     private sealed class RpcRequest

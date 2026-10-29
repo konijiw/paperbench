@@ -1,0 +1,27 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>PaperBench PDF</title>
+  <link rel="stylesheet" href="/pdf-reader/pdfjs/web/pdf_viewer.css">
+  <link rel="stylesheet" href="/pdf-reader/reader.css">
+</head>
+<body>
+  <nav aria-label="PDF 阅读工具">
+    <button id="previous" title="上一页" aria-label="上一页">‹</button>
+    <input id="page" type="number" min="1" value="1" aria-label="页码"><span id="pages">/ …</span>
+    <button id="next" title="下一页" aria-label="下一页">›</button>
+    <button id="minus" title="缩小" aria-label="缩小">−</button>
+    <select id="zoom" aria-label="PDF 缩放"><option value="page-width">适合宽度</option><option value="1">100%</option><option value="1.5">150%</option><option value="2">200%</option><option value="3">300%</option></select>
+    <button id="plus" title="放大" aria-label="放大">＋</button>
+    <button id="rotate" title="旋转 90°" aria-label="旋转 90°">↻</button>
+    <button id="searchToggle" title="搜索 PDF（Ctrl+F）" aria-label="搜索 PDF">查找</button>
+    <a id="original" target="_blank" rel="noopener noreferrer" title="在浏览器原生阅读器中打开，可打印或下载">原始文件</a>
+  </nav>
+  <form id="searchBar" hidden><input id="search" type="search" placeholder="搜索 PDF 文字" aria-label="搜索 PDF 文字"><button type="submit">下一个</button><span id="searchCount"></span><button type="button" id="searchClose" aria-label="关闭搜索">×</button></form>
+  <main id="reader"><div id="container"><div id="viewer" class="pdfViewer" lang="en"></div></div><div id="loading" role="status">正在打开 PDF…</div></main>
+  <div id="selectionTools" hidden role="toolbar" aria-label="PDF 文字选区"><button data-action="annotate">批注</button><button data-action="translate">AI 翻译</button><button data-action="send">发给 AI</button></div>
+  <div id="status" role="status" aria-live="polite"></div>
+  <script type="module" src="/pdf-reader/reader.mjs"></script>
+</body>
+</html>

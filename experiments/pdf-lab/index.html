@@ -1,0 +1,32 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>PaperBench · PDF 独立验证</title>
+  <link rel="stylesheet" href="/vendor/web/pdf_viewer.css">
+  <link rel="stylesheet" href="/lab.css">
+  <script type="importmap">{"imports":{"pdfjs-lib":"/vendor/build/pdf.mjs"}}</script>
+</head>
+<body>
+  <header>
+    <strong>PDF 独立验证</strong>
+    <label class="button">打开 PDF<input id="file" type="file" accept="application/pdf,.pdf" hidden></label>
+    <button id="sample">打开验证论文</button>
+    <button id="minus" aria-label="缩小">−</button>
+    <select id="zoom" aria-label="缩放"><option value="page-width">适合宽度</option><option value="1">100%</option><option value="1.5">150%</option><option value="2">200%</option><option value="3">300%</option></select>
+    <button id="plus" aria-label="放大">＋</button>
+    <button id="rotate">旋转 90°</button>
+    <button id="mark">标注选区</button>
+    <button id="export">导出实验批注</button>
+  </header>
+  <div class="notice">Ctrl＋滚轮缩放 PDF · 按住中键拖动平移 · 单击中键后移动鼠标可自动滚动，再次单击或按 Esc 停止。实验批注独立保存，不修改原 PDF。</div>
+  <main id="layout">
+    <section id="reader"><div id="container"><div id="viewer" class="pdfViewer" lang="en"></div></div><div id="empty">打开一篇论文，选中文字后点击“标注选区”。</div></section>
+    <div id="divider" role="separator" tabindex="0" aria-label="调整阅读区宽度" aria-orientation="vertical" aria-valuemin="280" aria-valuemax="1800" aria-valuenow="800"></div>
+    <aside><h2>实验批注 <span id="count">0</span></h2><p class="hint">点击批注可回到对应页面与选区。实验数据与 PaperBench 正式数据分开。</p><div id="annotations"></div><h2>渲染诊断</h2><pre id="diagnostics">尚未打开文档</pre></aside>
+  </main>
+  <footer id="status" role="status">准备就绪</footer>
+  <script type="module" src="/lab.mjs"></script>
+</body>
+</html>

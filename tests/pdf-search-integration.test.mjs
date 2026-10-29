@@ -1,0 +1,156 @@
+import assert from 'node:assert/strict';
+import {createRequire} from 'node:module';
+import {mkdir,writeFile,readFile,unlink} from 'node:fs/promises';
+import {createHash} from 'node:crypto';
+import {spawn,execFileSync} from 'node:child_process';
+import path from 'node:path';
+import {fileURLToPath} from 'node:url';
+const project=path.resolve(path.dirname(fileURLToPath(import.meta.url)),'..'),root=path.join(project,'tests/runtime/pdf-search-opening');
+const require=createRequire(path.join(process.env.PDF_LAB_MODULES,'_search_test.cjs'));
+const {chromium}=require('playwright'),{PDFDocument,StandardFonts}=require('pdf-lib');
+const library=path.join(root,'library'),state=path.join(root,'state/ai-literature-reader');
+await mkdir(state,{recursive:true});
+await writeFile(path.join(state,'settings.json'),JSON.stringify({libraryRoot:library}));
+for(const folder of ['code-001','code-002'])await unlink(path.join(library,folder,'markdown.md')).catch(error=>{if(error.code!=='ENOENT')throw error;});
+async function writePdf(folder,marker){
+  await mkdir(path.join(library,folder),{recursive:true});
+  const doc=await PDFDocument.create(),font=await doc.embedFont(StandardFonts.Helvetica);
+  doc.setTitle('MetadataOnlyVortex');
+  const first=doc.addPage([612,792]);
+  first.drawText(marker,{x:50,y:730,font,size:12});
+  for(let i=0;i<24;i++)first.drawText('Ordinary introductory filler about a general scientific study.',{x:50,y:700-i*15,font,size:8});
+  first.drawText('Pastboundary sentinel appears later on the first page.',{x:50,y:300,font,size:10});
+  doc.addPage([612,792]).drawText('Secondpageonly cobalt backstage observations.',{x:50,y:700,font,size:14});
+  await writeFile(path.join(library,folder,'source.pdf'),await doc.save());
+}
+await writePdf('code-001','Crimson zephyr benchmark measures fingertip impedance.');
+await writePdf('code-002','Graphite navigator analyses baseline mobility.');
+await writePdf('with-md','Lunarhiddenpdfsignal must never expand Markdown search.');
+await writeFile(path.join(library,'with-md','markdown.md'),'# Original Markdown Title\n\nInvisiblemdbodykeyword is not a title.\n');
+await mkdir(path.join(library,'empty-scan'),{recursive:true});const blank=await PDFDocument.create();blank.addPage();await writeFile(path.join(library,'empty-scan','source.pdf'),await blank.save());
+await mkdir(path.join(library,'zz-broken'),{recursive:true});await writeFile(path.join(library,'zz-broken','source.pdf'),'%PDF-1.7\ninvalid fixture');
+const notePath=path.join(state,'papers','v2-'+createHash('sha256').update('paper-v2\nCODE-001').digest('hex')+'.json');
+await mkdir(path.dirname(notePath),{recursive:true});
+const note=JSON.stringify({status:'unread',title:'',tags:['robots'],note:'Preserve this existing note',annotations:[],lastOpenedAt:'2026-01-01T00:00:00Z'});
+await writeFile(notePath,note);
+// Old full-text caches must be invalidated even if the PDF itself is unchanged.
+const oldCache=path.join(state,'pdf-search',createHash('sha256').update(path.join(library,'code-001','source.pdf').toUpperCase()).digest('hex')+'.json');
+await mkdir(path.dirname(oldCache),{recursive:true});
+await writeFile(oldCache,JSON.stringify({schema:'pdfjs-5.6.205-text-v1',signature:'old-full-text',title:'MetadataOnlyVortex',text:'Oldfulltextkeyword secondpageonly',pages:2,status:'ready'}));
+const hostPath=path.join(root,'Host.exe'),compiler=path.join(process.env.WINDIR||'C:/Windows','Microsoft.NET/Framework64/v4.0.30319/csc.exe');
+execFileSync(compiler,['/nologo','/target:exe','/out:'+hostPath,path.join(project,'tests/PdfReaderTestHost.cs')],{windowsHide:true});
+const host=spawn(hostPath,[path.join(root,'PaperBench.exe')],{windowsHide:true,stdio:['ignore','pipe','pipe']});
+let browser,page,url;const errors=[],checks=[];
+try{
+ url=await new Promise((resolve,reject)=>{let log='';host.stdout.on('data',b=>{log+=b;const m=/PDF_TEST_URL=(http:\/\/127\.0\.0\.1:\d+)/.exec(log);if(m)resolve(m[1]);});host.on('error',reject);});
+ const api=async(route,body)=>{const r=await fetch(url+route,body?{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)}:{});assert.ok(r.ok,await r.clone().text());return r.json();};
+ assert.equal((await api('/api/pdf-search/status?'+new URLSearchParams({root:library,paper:'code-001'}))).cached,false);
+ for(const [i,folder] of ['code-001','code-002','with-md'].entries())await api('/api/citation',{paper:folder,key:'entry'+i,bib:`@article{entry${i},title={Saved entry ${i}},author={Author, A},year={2026}}`});
+ browser=await chromium.launch({headless:true,executablePath:process.env.PDF_LAB_CHROME||'C:/Program Files/Google/Chrome/Application/chrome.exe'});
+ page=await browser.newPage({viewport:{width:1550,height:1000}});page.on('pageerror',e=>errors.push(e.message));
+ page.on('console',message=>{if(message.type()==='warning'||message.type()==='error')console.log('BROWSER',message.text());});
+ await page.route('**/assets/zcs/ai-chat.js',r=>r.fulfill({contentType:'application/javascript',body:'window.AILiteratureChat={mount:async()=>{},setPaper:async()=>{},focus:()=>{}};'}));
+ await page.goto(url);
+ await page.waitForFunction(()=>window.PaperSearch?.getPdfIndex('code-001')?.text.includes('zephyr'),{timeout:60000});
+ assert.equal(await page.locator('#pdfFrame').getAttribute('src'),null,'indexing does not open a paper');
+ assert.equal(await readFile(notePath,'utf8'),note,'indexing does not rewrite notes');
+ await page.locator('#treeSearch').fill('zephir impedance');
+ await page.waitForFunction(()=>document.querySelectorAll('#fileTree .tree-row.paper').length===1);
+ assert.equal(await page.locator('#fileTree .tree-row.paper').getAttribute('data-paper'),'code-001');
+ checks.push('unopened PDF-only opening excerpt supports typo search');
+ for(const word of ['secondpageonly','pastboundary','MetadataOnlyVortex','oldfulltextkeyword','lunarhiddenpdfsignal','invisiblemdbodykeyword']){
+   await page.locator('#treeSearch').fill(word);await page.waitForTimeout(180);
+   assert.equal(await page.locator('#fileTree .tree-row.paper').count(),0,'excluded search field: '+word);
+ }
+ await page.locator('#treeSearch').fill('Original Markdown');await page.waitForTimeout(180);
+ assert.equal(await page.locator('#fileTree .tree-row.paper').getAttribute('data-paper'),'with-md');
+ assert.equal(await page.locator('#pdfSearchStatus').count(),0,'startup progress is removed entirely');
+ assert.equal(await page.evaluate(()=>window.PaperSearch.getPdfIndex('with-md')),undefined);
+ assert.equal((await api('/api/pdf-search/status?'+new URLSearchParams({root:library,paper:'with-md'}))).eligible,false);
+ checks.push('MD search unchanged; later first-page text, later pages, metadata and old full-text caches excluded');
+ const query=new URLSearchParams({root:library,paper:'code-001'});
+ let cached=await api('/api/pdf-search/status?'+query);assert.equal(cached.cached,true);assert.equal(cached.pages,1);assert.equal(cached.text.length,800);assert.equal(cached.title,'');assert.match(cached.text,/zephyr/);
+ assert.match(cached.signature,/opening-800-v2/);
+ const signature=cached.signature;
+ // Persistent cache should work with extraction source deliberately unavailable.
+ await page.route('**/api/pdf-search/source?**',r=>r.abort());await page.reload();
+ await page.waitForFunction(()=>window.PaperSearch?.getPdfIndex('code-001')?.text.includes('zephyr'));
+ checks.push('restart reuses persistent local index without re-reading PDF');
+ await page.unroute('**/api/pdf-search/source?**');
+ await page.locator('.tree-row.paper[data-paper="code-001"]').click();await page.locator('#paperTitle').waitFor();
+ await page.locator('#openCitations').click();await page.locator('#citeBatch').evaluate(el=>el.open=true);
+ await page.waitForSelector('#citeLibrary input[data-paper="code-002"]');
+ const selected=page.locator('#citeLibrary input[data-paper="code-002"]');await selected.check();
+ await page.locator('#citeLibrarySearch').fill('zephir impedance');
+ await page.waitForTimeout(200);
+ assert.equal(await page.locator('#citeLibrary .citation-choice:visible').count(),1);
+ assert.equal(await page.locator('#citeLibrary .citation-choice:visible input').getAttribute('data-paper'),'code-001');
+ assert.equal(await selected.isChecked(),true,'hidden citation selection retained');
+ for(const word of ['lunarhiddenpdfsignal','secondpageonly','pastboundary']){
+   await page.locator('#citeLibrarySearch').fill(word);
+   assert.equal(await page.locator('#citeLibrary .citation-choice:visible').count(),0,'citation scope: '+word);
+ }
+ await page.locator('#citeLibrarySearch').fill('Original Markdown');
+ assert.equal(await page.locator('#citeLibrary .citation-choice:visible input').getAttribute('data-paper'),'with-md');
+ await page.locator('#citeLibrarySearch').fill('zephyr');
+ await page.evaluate(()=>window.dispatchEvent(new CustomEvent('paperbench-search-updated')));
+ assert.equal(await selected.isChecked(),true,'background index update retains citation checks');
+ const [download]=await Promise.all([page.waitForEvent('download'),page.locator('#citeExportSelected').click()]);
+ const bibliography=await readFile(await download.path(),'utf8');
+ assert.match(bibliography,/@article\{entry1,/);assert.doesNotMatch(bibliography,/@article\{entry0,/);
+ await page.locator('#citeClose').click();
+ checks.push('citation export shares PDF search and preserves hidden checked records');
+ await page.locator('#openMaterialExport').click();await page.waitForSelector('#materialList input[type="checkbox"]');
+ const boxes=page.locator('#materialList input[type="checkbox"]');
+ await boxes.nth(1).check();await page.locator('#materialSearch').fill('zephyr');await page.waitForTimeout(150);
+ assert.equal(await page.locator('#materialList input[type="checkbox"]').count(),1);
+ assert.match(await page.locator('#materialCount').innerText(),/已选 1/);
+ for(const word of ['lunarhiddenpdfsignal','secondpageonly','pastboundary']){
+   await page.locator('#materialSearch').fill(word);
+   assert.equal(await page.locator('#materialList input[type="checkbox"]').count(),0,'material scope: '+word);
+ }
+ await page.locator('#materialSearch').fill('Original Markdown');
+ assert.equal(await page.locator('#materialList input[type="checkbox"]').count(),1);
+ assert.match(await page.locator('#materialList').innerText(),/with-md/);
+ await page.locator('#materialSearch').fill('zephyr');
+ await page.evaluate(()=>window.dispatchEvent(new CustomEvent('paperbench-search-updated')));
+ await page.locator('#materialSearch').fill('');
+ assert.equal(await page.locator('#materialList input:checked').count(),1);
+ await page.locator('#materialSearch').fill('zephyr');
+ let exportRequest;
+ await page.route('**/api/material-export/start',route=>{
+   exportRequest=route.request().postDataJSON();
+   return route.fulfill({contentType:'application/json',body:JSON.stringify({cancelled:true})});
+ });
+ await page.locator('#materialStart').click();
+ await page.waitForFunction(()=>!document.getElementById('materialClose').disabled);
+ assert.deepEqual(exportRequest.papers,['code-002'],'export submits hidden selected paper rather than visible search hits');
+ await page.unroute('**/api/material-export/start');
+ checks.push('reading-material export shares PDF search and preserves selection across filtering');
+ await page.locator('#materialClose').click();
+ await writePdf('code-001','Emerald zephyr benchmark measures fingertip impedance.');
+ await page.locator('#refreshTree').click();
+ await page.waitForFunction(()=>{const i=window.PaperSearch?.getPdfIndex('code-001');return i?.text.includes('Emerald')&&!i.text.includes('Crimson');},{timeout:60000});
+ cached=await api('/api/pdf-search/status?'+query);assert.notEqual(cached.signature,signature);assert.match(cached.text,/Emerald/);
+ checks.push('modified PDF invalidates and rebuilds cached text');
+ await page.waitForFunction(()=>window.PaperSearch?.getPdfIndex('empty-scan')?.status==='empty');
+ checks.push('image-only PDF has an empty text index and does not break other searches');
+ const wrong=await fetch(url+'/api/pdf-search/save',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({root:library,paper:'code-001',signature:'stale',title:'',text:'Wrong text',status:'ready',pages:1})});
+ assert.equal(wrong.ok,false);assert.match((await api('/api/pdf-search/status?'+query)).text,/Emerald/);
+ const switched=await fetch(url+'/api/pdf-search/status?'+new URLSearchParams({root:library+'-other',paper:'code-001'}));assert.equal(switched.ok,false);
+ checks.push('stale file and wrong-library requests cannot overwrite the search cache');
+ await writeFile(path.join(library,'code-001','markdown.md'),'# Newly Parsed Heading\n\nNot part of the original title search.\n');
+ await page.locator('#refreshTree').click();
+ await page.waitForFunction(()=>window.PaperSearch.library.papers.find(p=>p.path==='code-001')?.hasMarkdown===true);
+ assert.equal(await page.evaluate(()=>window.PaperSearch.getPdfIndex('code-001')),undefined);
+ await page.locator('#treeSearch').fill('zephyr');await page.waitForTimeout(180);
+ assert.equal(await page.locator('#fileTree .tree-row.paper').count(),0);
+ await page.locator('#treeSearch').fill('Newly Parsed');await page.waitForTimeout(180);
+ assert.equal(await page.locator('#fileTree .tree-row.paper').getAttribute('data-paper'),'code-001');
+ assert.equal((await api('/api/pdf-search/status?'+query)).eligible,false);
+ checks.push('adding Markdown immediately disables PDF opening search');
+ assert.deepEqual(errors,[]);
+ await page.screenshot({path:path.join(root,'search-results.png')});
+ await writeFile(path.join(root,'results.json'),JSON.stringify({passed:true,checks,errors},null,2));console.log(JSON.stringify({passed:true,checks,errors},null,2));
+}catch(error){if(page){console.log('PAGE_ERRORS',errors);console.log('INDEX_STATE',await page.evaluate(()=>({progress:document.getElementById('pdfSearchStatus')?.textContent,index:window.PaperSearch?.getPdfIndex('code-001')?.status})).catch(()=>null));await page.screenshot({path:path.join(root,'failure.png')}).catch(()=>{});}throw error;}
+finally{if(browser)await browser.close();host.kill();}

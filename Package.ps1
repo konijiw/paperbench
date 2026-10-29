@@ -1,4 +1,4 @@
-﻿param([string]$Version = 'v0.1.2')
+﻿param([string]$Version = 'v0.2.0')
 $ErrorActionPreference = 'Stop'
 if ($Version -notmatch '^v\d+\.\d+\.\d+(?:-[a-zA-Z0-9.]+)?$') { throw '版本号格式应为 v0.1.2。' }
 $project = Split-Path -Parent $MyInvocation.MyCommand.Path
@@ -20,7 +20,9 @@ PaperBench $Version - Windows 便携版
 3. 点击“打开文件夹”选择论文库，再导入 PDF。
 
 运行环境：Windows 10/11、.NET Framework 4.x、现代浏览器。
-直接阅读 PDF 无需 Python。AI 对话需配置 Codex CLI，解析需安装 MinerU；
+直接阅读 PDF 无需 Python。AI 默认使用 Codex CLI，也可在 AI 设置中配置 OpenAI 兼容 API。
+API 的模型、对话关联和历史与 Codex 分开保存；更换电脑后需重新填写 API 密钥。
+PDF 精细解析需安装 MinerU，普通文本提取使用内置阅读器；
 自动从 PDF 提取引用信息需配置 pdftotext。具体步骤见 README.md。
 
 首次运行后，配置和笔记保存在 state 文件夹，附件和笔记图片保存在 attachments，
@@ -38,7 +40,16 @@ third-party-source 提供引用引擎及其包装源码，完整应用源码见�
 "@
 [IO.File]::WriteAllText((Join-Path $package '使用说明.txt'), $guide, (New-Object Text.UTF8Encoding($true)))
 $archive = Join-Path $output 'PaperBench-Windows.zip'
-Compress-Archive -LiteralPath $package -DestinationPath $archive -Force
+Add-Type -AssemblyName System.IO.Compression
+Add-Type -AssemblyName System.IO.Compression.FileSystem
+$archiveStream = [IO.File]::Open($archive, [IO.FileMode]::Create)
+$zip = New-Object IO.Compression.ZipArchive($archiveStream, [IO.Compression.ZipArchiveMode]::Create)
+try {
+    Get-ChildItem -LiteralPath $package -Recurse -File | Sort-Object FullName | ForEach-Object {
+        $entryName = 'PaperBench/' + $_.FullName.Substring($package.Length + 1).Replace('\', '/')
+        [IO.Compression.ZipFileExtensions]::CreateEntryFromFile($zip, $_.FullName, $entryName, [IO.Compression.CompressionLevel]::Optimal) | Out-Null
+    }
+} finally { $zip.Dispose(); $archiveStream.Dispose() }
 $checksum = (Get-FileHash -LiteralPath $archive -Algorithm SHA256).Hash.ToLowerInvariant() + '  PaperBench-Windows.zip' + "`n"
 [IO.File]::WriteAllText((Join-Path $output 'SHA256SUMS.txt'), $checksum, (New-Object Text.UTF8Encoding($false)))
 Get-Item -LiteralPath $archive | Select-Object FullName, Length

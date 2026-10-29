@@ -87,7 +87,7 @@
   }
   function commit() { if (enabled) options.change(editor.value); }
   function addMarkdown(text, source) {
-    if (!enabled || !paperHasMarkdown) return false;
+    if (!enabled || (!paperHasMarkdown && source.indexOf('#reader-annotation=') !== 0)) return false;
     if (editor.value.indexOf('](' + source + ')') >= 0) { options.toast('这条内容已经加入笔记，可直接编辑已有摘录。'); return false; }
     var wasEditing = editing, position = wasEditing ? editor.selectionEnd : editor.value.length;
     var before = editor.value.slice(0, position), after = editor.value.slice(position);

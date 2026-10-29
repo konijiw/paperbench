@@ -102,6 +102,7 @@
       abstract: "",
       pdfPath: paper.pdfPath,
       markdownPath: paper.markdownPath,
+      preferredTextPath: paper.preferredTextPath,
       workingDirectory: paper.workingDirectory,
     };
   }
@@ -109,9 +110,13 @@
   async function mount(root) {
     if (view) return view;
     await loadPersistentPreferences();
-    client = new BrowserCodexClient({ getPreference, log });
-    manager = new SidebarManager({ client, getPreference, setPreference, log });
+    const apiMode = getPreference("aiProvider") === "api";
+    const prefs = apiMode ? global.PaperBenchApi.preferences(getPreference, setPreference) : { get: getPreference, set: setPreference };
+    client = apiMode ? new global.PaperBenchApi.CompatibleApiClient({ getPreference: prefs.get, log }) : new BrowserCodexClient({ getPreference, log });
+    manager = new SidebarManager({ client, getPreference: prefs.get, setPreference: prefs.set, log });
+    if (apiMode) manager.paperDirectory = context => context?.workingDirectory || "";
     view = new SidebarView(manager, { doc: document, body: root, item: { id: 0, key: "none" }, tabType: "reader" });
+    global.PaperBenchApi.installSettings(view, apiMode ? "api" : "codex");
     manager.views.set(root, view);
     view.refreshContext = async () => {
       if (!currentPaper) return null;
@@ -147,13 +152,13 @@
     return context;
   }
 
-  function addTextSelection(text) {
+  function addTextSelection(text, page) {
     if (!view?.context || !String(text || "").trim()) return false;
     manager.setLiveSelection(view.context.attachmentID, {
       id: global.crypto?.randomUUID?.() || `md-${Date.now()}`,
       text: String(text).trim(),
-      pageLabel: "Markdown",
-      pageNumber: "",
+      pageLabel: page ? String(page) : "Markdown",
+      pageNumber: page || "",
     });
     view.renderSelections();
     view.elements.input.focus();
@@ -176,7 +181,25 @@
     return true;
   }
 
+  async function addScreenshot(url, page) {
+    if (!view || !currentPaper || view.running || view.contextTransitioning) return false;
+    const paper = currentPaper;
+    if (view.images.length >= 10) throw new Error('最多附加 10 张图片');
+    const before = view.images.length;
+    const match = /^data:image\/png;base64,([A-Za-z0-9+/=]+)$/.exec(url);
+    if (!match) throw new Error('截图格式无效');
+    const bytes = Uint8Array.from(atob(match[1]), c => c.charCodeAt(0));
+    const blob = new Blob([bytes], { type: 'image/png' });
+    if (blob.size > 20 * 1024 * 1024) throw new Error('截图超过 20 MB，请缩小选区');
+    if (paper !== currentPaper) return false;
+    await view.addImageFiles([new File([blob], `PDF 第 ${page} 页截图.png`, { type: 'image/png' })]);
+    return paper === currentPaper && view.images.length > before;
+  }
   function focus() { view?.elements?.input?.focus(); }
+  function setPreferredText(path) {
+    if (currentPaper) currentPaper.preferredTextPath = path;
+    if (view?.context) view.context.preferredTextPath = path;
+  }
 
-  global.AILiteratureChat = { mount, setPaper, addTextSelection, addLocalImage, focus, get view() { return view; } };
+  global.AILiteratureChat = { mount, setPaper, addTextSelection, addLocalImage, addScreenshot, setPreferredText, focus, get view() { return view; } };
 })(globalThis);

@@ -8,7 +8,7 @@ internal static partial class MinerULibraryReview
 
     // Windows Common Item Dialog, not the legacy FolderBrowserDialog tree.
     // Create and release all COM objects on a fresh STA for each invocation.
-    private static string ChooseModernExportFolder(IntPtr owner)
+    private static string ChooseModernExportFolder(IntPtr owner, string title = null)
     {
         int initialized = CoInitializeEx(IntPtr.Zero, 2); // COINIT_APARTMENTTHREADED
         if (initialized < 0) Marshal.ThrowExceptionForHR(initialized);
@@ -24,9 +24,9 @@ internal static partial class MinerULibraryReview
             var dialog = (ExportFileDialog)instance;
             uint flags; dialog.GetOptions(out flags);
             dialog.SetOptions(flags | 0x20u | 0x40u | 0x800u | 0x02000000u); // PICKFOLDERS, FORCEFILESYSTEM, PATHMUSTEXIST, DONTADDTORECENT
-            dialog.SetTitle("选择阅读资料的导出位置（将在其中新建文件夹）");
+            dialog.SetTitle(title ?? "选择阅读资料的导出位置（将在其中新建文件夹）");
             dialog.SetOkButtonLabel("选择此文件夹");
-            Guid client = new Guid("B30282E9-714C-419A-9241-6E4C61C1EB07");
+            Guid client = new Guid(title == null ? "B30282E9-714C-419A-9241-6E4C61C1EB07" : "8CA7594D-BE44-4E6E-A12F-D8F48D843743");
             dialog.SetClientGuid(ref client);
 
             // The native window is created by Show. Raise it once after it is visible,

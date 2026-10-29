@@ -11,13 +11,26 @@ internal static partial class MinerULibraryReview
 {
     private static MaterialChatArchive CreateChatArchive(Dictionary<string, string> bindings)
     {
+        string provider;
+        lock (StateLock) AiPreferences.TryGetValue("aiProvider", out provider);
+        if (provider == "api") return CreateApiChatArchive();
         try
         {
             CodexBridge bridge = GetCodex();
             bridge.ConnectInfo();
-            return new MaterialChatArchive(bridge.ReadHistory, bindings, null);
+            return new MaterialChatArchive(bridge.ReadHistory, bindings, null) { includeApiArchive = true };
         }
-        catch (Exception ex) { return new MaterialChatArchive(null, bindings, "无法读取 Codex 历史：" + ex.Message); }
+        catch (Exception ex) { return new MaterialChatArchive(null, bindings, "无法读取 Codex 历史：" + ex.Message) { includeApiArchive = true }; }
+    }
+
+    private static MaterialChatArchive CreateApiChatArchive()
+    {
+        // The existing exporter consumes dictionaries returned by its history reader.
+        Func<string, object, object> read = delegate(string method, object parameters) {
+            if (method != "thread/list" && method != "thread/read" && method != "thread/turns/list") throw new InvalidOperationException("档案仅读取历史。");
+            return ApiSerializer().DeserializeObject(ApiSerializer().Serialize(ApiRpc(method, parameters)));
+        };
+        return new MaterialChatArchive(read, new Dictionary<string, string>(), null) { channelLabel = "自定义 API" };
     }
 
     private sealed class MaterialChatArchive
@@ -25,6 +38,9 @@ internal static partial class MinerULibraryReview
         private readonly Func<string, object, object> rpc;
         private readonly Dictionary<string, string> bindings;
         private readonly string connectionError;
+        public bool includeApiArchive;
+        public string exportSubfolder;
+        public string channelLabel;
         public MaterialChatArchive(Func<string, object, object> reader, Dictionary<string, string> links, string error)
         { rpc = reader; bindings = links ?? new Dictionary<string, string>(); connectionError = error; }
         private static Dictionary<string, object> Map(object value) { return value as Dictionary<string, object> ?? new Dictionary<string, object>(); }
@@ -121,9 +137,10 @@ internal static partial class MinerULibraryReview
 
         public int Export(MaterialSource paper, string target, Action<string> warning)
         {
-            string folder = Path.Combine(target, "AI对话"); Directory.CreateDirectory(folder);
+            string folder = Path.Combine(target, exportSubfolder ?? "AI对话"); Directory.CreateDirectory(folder);
             var index = new StringBuilder("# " + MaterialMd(paper.title) + " · AI 对话档案\n\n这是已有对话的可读快照，不是论文原文或会话迁移文件。工具执行日志和内部推理不包含在档案中。\n\n");
             int exported = 0;
+            if (channelLabel != null) index.Append("连接方式：").Append(channelLabel).Append("\n\n");
             if (connectionError != null)
             {
                 warning(connectionError); index.Append("未能连接本机 Codex 历史；其他论文资料仍已导出。\n");
@@ -183,6 +200,16 @@ internal static partial class MinerULibraryReview
                     }
                 }
                 if (threads.Count == 0) index.Append("没有找到此论文的关联对话。移动过论文目录、换电脑或删除本机历史后，可能无法找到原对话。\n");
+            }
+            if (includeApiArchive && Directory.Exists(Path.Combine(ApiDirectory, "threads")))
+            {
+                try
+                {
+                    var api = CreateApiChatArchive(); api.exportSubfolder = Path.Combine("AI对话", "API");
+                    int apiCount = api.Export(paper, target, warning); exported += apiCount;
+                    if (apiCount > 0) index.Append("\n- [自定义 API 对话](API/索引.md) · ").Append(apiCount).Append(" 段对话\n");
+                }
+                catch (Exception ex) { warning("API 历史读取失败：" + ex.Message); }
             }
             MaterialWrite(folder, "索引.md", index.ToString()); return exported;
         }

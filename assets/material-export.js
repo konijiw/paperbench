@@ -17,8 +17,7 @@
     $('materialClose').disabled = value; $('materialStart').disabled = value || !selected.size;
   }
   function visible() {
-    var query = $('materialSearch').value.trim().toLocaleLowerCase();
-    return records.filter(function (record) { return !query || [record.title, record.path].concat(record.tags || []).join(' ').toLocaleLowerCase().indexOf(query) >= 0; });
+    return window.PaperSearch.filter(records, $('materialSearch').value, true);
   }
   function count() {
     $('materialCount').textContent = '已选 ' + selected.size + ' / ' + records.length + ' 篇 · 当前显示 ' + visible().length + ' 篇';
@@ -32,7 +31,7 @@
       var box = document.createElement('input'); box.type = 'checkbox'; box.checked = selected.has(record.path); box.disabled = busy; box.dataset.exportControl = '';
       box.onchange = function () { if (box.checked) selected.add(record.path); else selected.delete(record.path); count(); };
       var text = document.createElement('span'), title = document.createElement('strong'), meta = document.createElement('small'), path = document.createElement('small');
-      title.textContent = record.title;
+      title.textContent = record.title || record.parsedTitle || record.name;
       meta.textContent = [record.hasMarkdown ? 'PDF + Markdown' : '仅 PDF', record.hasNote ? '有整篇笔记' : '无整篇笔记', record.annotations + ' 条批注', record.hasCitation ? '有引用信息' : '未保存引用'].join(' · ');
       path.textContent = (record.tags || []).map(function (tag) { return '#' + tag; }).join(' ') + ((record.tags || []).length ? ' · ' : '') + record.path;
       text.appendChild(title); text.appendChild(meta); text.appendChild(path);
@@ -104,6 +103,9 @@
     dialog.addEventListener('cancel', function (event) { if (busy) event.preventDefault(); });
     $('materialClose').onclick = function () { if (!busy) dialog.close(); };
     $('materialSearch').oninput = render;
+    window.addEventListener('paperbench-search-updated', function () {
+      if (dialog.open && !busy && $('materialSearch').value.trim()) render();
+    });
     $('materialName').oninput = function () { nameEdited = !!this.value.trim(); };
     $('materialTag').onchange = function () {
       var tag = this.value; if (!tag) return;

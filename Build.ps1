@@ -12,6 +12,18 @@ $compiler = $compilerCandidates | Where-Object { Test-Path -LiteralPath $_ } | S
 if (-not $compiler) { throw '未找到 .NET Framework C# 编译器。' }
 
 $assets = Join-Path $projectDirectory 'assets'
+Add-Type -AssemblyName System.IO.Compression
+Add-Type -AssemblyName System.IO.Compression.FileSystem
+$pdfAssets = Join-Path $assets 'pdf-reader'
+$pdfBundle = Join-Path $assets 'pdf-reader-bundle.zip'
+$bundleStream = [IO.File]::Open($pdfBundle, [IO.FileMode]::Create)
+$bundleArchive = New-Object IO.Compression.ZipArchive($bundleStream, [IO.Compression.ZipArchiveMode]::Create)
+try {
+    Get-ChildItem -LiteralPath $pdfAssets -Recurse -File | Sort-Object FullName | ForEach-Object {
+        $entryName = $_.FullName.Substring($pdfAssets.Length + 1).Replace('\', '/')
+        [IO.Compression.ZipFileExtensions]::CreateEntryFromFile($bundleArchive, $_.FullName, $entryName, [IO.Compression.CompressionLevel]::Optimal) | Out-Null
+    }
+} finally { $bundleArchive.Dispose(); $bundleStream.Dispose() }
 $cslDirectory = Join-Path $assets 'csl'
 $cslData = @{ styles = @{}; locales = @{}; licenses = @{} }
 Get-ChildItem -LiteralPath $cslDirectory -Filter '*.csl' | ForEach-Object { $cslData.styles[$_.BaseName] = [IO.File]::ReadAllText($_.FullName) }
@@ -27,6 +39,7 @@ $noticeFiles = @(
 )
 $noticeFiles += @(Get-ChildItem -LiteralPath $assets -Filter 'LICENSE*.txt' | Where-Object { $_.Name -ne 'license-notices.txt' } | Sort-Object Name | Select-Object -ExpandProperty FullName)
 $noticeFiles += @(Get-ChildItem -LiteralPath $cslDirectory -Filter '*.txt' | Sort-Object Name | Select-Object -ExpandProperty FullName)
+$noticeFiles += @(Get-ChildItem -LiteralPath (Join-Path $pdfAssets 'pdfjs') -Recurse -File | Where-Object { $_.Name -like 'LICENSE*' } | Sort-Object FullName | Select-Object -ExpandProperty FullName)
 $noticeSections = @('PaperBench - licenses, copyright notices, and source availability. Source paths listed below are relative to this application''s local URL. See /third-party/citeproc.js, /assets/csl-bundle.js and /third-party/Build.ps1.')
 foreach ($noticeFile in $noticeFiles) {
     $noticeName = $noticeFile.Substring($projectDirectory.Length + 1).Replace('\', '/')
@@ -50,11 +63,14 @@ $arguments = @(
     '/reference:System.Web.Extensions.dll',
     '/reference:System.Drawing.dll',
     '/reference:System.Windows.Forms.dll',
+    '/reference:System.Security.dll',
     '/reference:System.IO.Compression.dll',
     '/reference:System.IO.Compression.FileSystem.dll',
     "/resource:$(Join-Path $assets 'app.html'),AppHtml",
+    "/resource:$pdfBundle,PdfReaderBundle",
     "/resource:$(Join-Path $assets 'app.css'),AppCss",
     "/resource:$(Join-Path $assets 'app.js'),AppJs",
+    "/resource:$(Join-Path $assets 'paper-search.js'),PaperSearchJs",
     "/resource:$(Join-Path $assets 'citations.js'),CitationsJs",
     "/resource:$(Join-Path $assets 'word-citations.js'),WordCitationsJs",
     "/resource:$(Join-Path $assets 'paper-notes.js'),PaperNotesJs",
@@ -76,9 +92,14 @@ $arguments = @(
     "/resource:$(Join-Path $assets 'codex-sidebar\katex.min.js'),ZcsKatexJs",
     "/resource:$(Join-Path $assets 'codex-sidebar\katex.min.css'),ZcsKatexCss",
     "/resource:$(Join-Path $assets 'ai-client.js'),AiClientJs",
+    "/resource:$(Join-Path $assets 'compatible-api.js'),CompatibleApiJs",
     "/resource:$(Join-Path $assets 'ai-chat.js'),AiChatJs",
     $source,
     (Join-Path $projectDirectory 'ReaderFeatures.cs'),
+    (Join-Path $projectDirectory 'CompatibleApi.cs'),
+    (Join-Path $projectDirectory 'PdfReader.cs'),
+    (Join-Path $projectDirectory 'PdfSearch.cs'),
+    (Join-Path $projectDirectory 'PdfProcessing.cs'),
     (Join-Path $projectDirectory 'Citations.cs'),
     (Join-Path $projectDirectory 'CitationSearch.cs'),
     (Join-Path $projectDirectory 'CitationRecognition.cs'),
