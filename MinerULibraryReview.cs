@@ -23,6 +23,7 @@ internal static partial class MinerULibraryReview
     private static string TranslationWorkspaceDirectory;
     private static string LibraryRoot;
     private static Dictionary<string, string> AiPreferences = new Dictionary<string, string>(StringComparer.Ordinal);
+    private static LibraryViewPreferences LibraryView = new LibraryViewPreferences();
     private static TcpListener Listener;
     private static DateTime LastHeartbeat = DateTime.UtcNow;
     private static DateTime? CloseRequested;
@@ -100,6 +101,7 @@ internal static partial class MinerULibraryReview
             Settings settings = Json.Deserialize<Settings>(File.ReadAllText(path, Encoding.UTF8));
             if (settings != null && Directory.Exists(settings.libraryRoot))
                 LibraryRoot = Path.GetFullPath(settings.libraryRoot);
+            if (settings != null && settings.libraryView != null) LibraryView = settings.libraryView;
             if (settings != null && settings.aiPreferences != null)
                 AiPreferences = new Dictionary<string, string>(settings.aiPreferences, StringComparer.Ordinal);
         }
@@ -113,6 +115,7 @@ internal static partial class MinerULibraryReview
             AtomicWrite(Path.Combine(StateDirectory, "settings.json"), Json.Serialize(new Settings
             {
                 libraryRoot = LibraryRoot,
+                libraryView = LibraryView,
                 aiPreferences = new Dictionary<string, string>(AiPreferences, StringComparer.Ordinal)
             }));
         }
@@ -195,6 +198,8 @@ internal static partial class MinerULibraryReview
                 else if (path == "/assets/material-export.js") WriteResource(stream, "MaterialExportJs", "application/javascript; charset=utf-8");
                 else if (path == "/assets/pdf-import.js") WriteResource(stream, "PdfImportJs", "application/javascript; charset=utf-8");
                 else if (path == "/assets/csl-bundle.js") WriteResource(stream, "CslBundleJs", "application/javascript; charset=utf-8");
+                else if (path == "/api/library-view" && request.method == "POST") SaveLibraryView(stream, request.body);
+                else if (path == "/api/library-view" && request.method == "GET") { lock (StateLock) WriteJson(stream, LibraryView); }
                 else if (path == "/api/settings") WriteJson(stream, new { libraryRoot = LibraryRoot });
                 else if (path == "/api/material-export/papers") WriteJson(stream, ListMaterialExportPapers());
                 else if (path == "/api/material-export/start" && request.method == "POST") StartMaterialExport(stream, request.body);
@@ -951,9 +956,28 @@ internal static partial class MinerULibraryReview
         public byte[] bodyBytes;
     }
 
+    private sealed class LibraryViewPreferences
+    {
+        public string scope { get; set; }
+        public string filter { get; set; }
+        public string viewMode { get; set; }
+    }
+
+    private static void SaveLibraryView(Stream stream, string body)
+    {
+        LibraryViewPreferences value = Json.Deserialize<LibraryViewPreferences>(body);
+        if (value == null || !new[] { "all", "favorites", "recent", "added" }.Contains(value.scope)
+            || !new[] { "all", "unread", "skimmed", "deep" }.Contains(value.filter)
+            || !new[] { "files", "tags" }.Contains(value.viewMode))
+            throw new InvalidOperationException("论文库显示设置无效。");
+        lock (StateLock) { LibraryView = value; SaveSettings(); }
+        WriteJson(stream, new { saved = true });
+    }
+
     private sealed class Settings
     {
         public string libraryRoot { get; set; }
+        public LibraryViewPreferences libraryView { get; set; }
         public Dictionary<string, string> aiPreferences { get; set; }
     }
 

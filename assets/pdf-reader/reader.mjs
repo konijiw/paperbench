@@ -267,6 +267,7 @@ window.addEventListener('message', e => {
   const command = e.data;
   if (e.source !== parent || e.origin !== location.origin || command?.type !== 'paperbench-pdf-command' ||
       command.session !== session || command.paper !== paper || !pdf) return;
+  if (command.kind === 'rotate') $('rotate').click();
   if (command.kind === 'annotations') setAnnotations(command.annotations).catch(error => notice('PDF 批注匹配失败：' + error.message));
   if (command.kind === 'locate') locate(command.annotation, command.requestId).catch(error => emit('located', { requestId: command.requestId, status: 'error', message: error.message }));
   if (command.kind === 'capture') { gestures.stop(); clearSelection(); capture.begin(); }

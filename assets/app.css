@@ -296,3 +296,80 @@
 .pdf-parse-menu>.pdf-parse-configure{padding:6px 9px;font-size:11px;color:#718096}
 
 .reading-layout:not(.pdf-only) .mineru-parse-bar:not(.hidden){display:inline-block}
+/* Reading-first interface: compact entry points and contextual actions. */
+.quiet-legacy{display:none!important}
+.app-header{height:64px;gap:12px;padding:0 16px;flex-wrap:nowrap}
+.app-shell{height:calc(100% - 64px)}
+.brand{flex:0 1 200px;min-width:125px}.brand small{max-width:165px}
+.header-controls{overflow:visible;gap:10px;flex:1 1 auto}.header-paper-actions{gap:8px}.header-group{border:0;padding:0;gap:6px}
+#toggleExplorer,#toggleNotes,#toggleAi{width:auto;min-width:44px;padding:0 10px}
+.app-header .header-actions{flex:none;gap:8px}.app-header .button{padding:0 10px}
+.header-paper-actions>.paper-actions{display:none}.header-paper-actions #saveState{display:none}
+.quiet-reading-modes,.quiet-note-tabs{display:flex;gap:2px;padding:3px;border:1px solid var(--line);border-radius:8px;background:#f0f2f5}
+.quiet-reading-modes button,.quiet-note-tabs button{border:0;background:transparent;border-radius:5px;padding:7px 12px;color:var(--muted);font-size:12px;cursor:pointer;white-space:nowrap}
+.quiet-reading-modes button[aria-pressed=true],.quiet-note-tabs button[aria-pressed=true]{background:white;color:var(--blue);box-shadow:0 1px 4px #20314215;font-weight:600}
+.quiet-reading-modes button:disabled{opacity:.4;cursor:default}
+.quiet-menu{position:relative;flex:none;font-size:12px;font-weight:400;letter-spacing:normal;text-transform:none}
+.quiet-menu>summary{list-style:none;cursor:pointer;padding:7px 9px;border-radius:6px;color:#5b6675;white-space:nowrap}
+.quiet-menu>summary::-webkit-details-marker{display:none}.quiet-menu>summary:hover,.quiet-menu[open]>summary{background:#e9edf2}
+.quiet-menu-body{position:absolute;top:calc(100% + 5px);right:0;z-index:90;min-width:170px;max-width:calc(100vw - 24px);padding:7px;border:1px solid var(--line);border-radius:10px;background:#fff;box-shadow:0 12px 35px #27344824}
+.quiet-menu-body>button{display:block;width:100%;text-align:left;padding:9px!important;border:0!important;background:transparent!important;color:#536176;border-radius:5px;cursor:pointer;font-size:12px!important}
+.quiet-menu-body button:hover{background:#f0f3f8!important}.quiet-menu-body #recyclePaper{color:#b54d43}.quiet-menu-body #recyclePaper::after{content:'移至回收站'}.quiet-menu-body #recyclePaper svg{width:15px;height:15px;margin-right:8px}
+.quiet-library-controls{display:flex;align-items:center;gap:3px;padding:0 10px 8px;justify-content:space-between}
+.quiet-library-controls .quiet-menu-body{left:0;right:auto}
+.quiet-menu-body .library-scope,.quiet-menu-body .scope-primary,.quiet-menu-body .scope-shortcuts,.quiet-menu-body .tree-mode,.quiet-menu-body .status-filters{display:flex;flex-direction:column;margin:0;padding:0;gap:2px;background:transparent;border:0}
+.quiet-menu-body .library-scope button,.quiet-menu-body .tree-mode button,.quiet-menu-body .status-filters button{display:flex;align-items:center;gap:8px;width:100%;height:auto;min-height:34px;text-align:left;padding:8px 10px;font-size:12px;border:0;border-radius:5px;background:transparent;color:#637186}
+.quiet-menu-body .library-scope button svg{width:16px;height:16px}.quiet-menu-body button.active{background:#edf3fc!important;color:#315fae}
+.quiet-filter-chips{display:flex;gap:5px;flex-wrap:wrap;padding:0 12px 10px}.quiet-filter-chips[hidden]{display:none}.quiet-filter-chips button{border:0;border-radius:5px;background:#eaf0f9;color:#48658b;padding:4px 7px;font-size:11px;cursor:pointer}
+.explorer-heading{height:48px}.explorer-heading-actions{gap:6px}.explorer .search-box{flex:none;margin-top:4px}
+.paper-toolbar{padding:8px 14px;gap:8px;background:#fff;min-height:50px}
+.paper-toolbar .paper-identity{flex:1 1 180px}.paper-toolbar .button{font-size:12px;padding:5px 8px;border-color:transparent;background:transparent}.paper-toolbar .quiet-menu{margin-left:0}
+.paper-toolbar #favoritePaper{font-size:12px}.paper-toolbar #editMetadata{color:#49678d}
+.app-shell.explorer-collapsed{grid-template-columns:0 minmax(0,1fr) auto auto}
+.explorer.collapsed,.notes-panel.collapsed,.ai-panel.collapsed{width:0!important;min-width:0!important;border:0;overflow:hidden;box-shadow:none}
+.explorer.collapsed .explorer-rail,.notes-panel.collapsed .notes-rail,.ai-panel.collapsed .ai-rail{display:none}
+.reading-layout{flex:1;min-height:0;height:auto;grid-template-columns:minmax(0,var(--pdf-width,50%)) 5px minmax(0,1fr)}
+.reading-layout.pdf-collapsed{grid-template-columns:0 0 minmax(0,1fr);grid-template-rows:minmax(0,1fr)}
+.reading-layout.markdown-collapsed,.reading-layout.pdf-only{grid-template-columns:minmax(0,1fr) 0 0;grid-template-rows:minmax(0,1fr)}
+.reading-layout.pdf-collapsed .pdf-pane,.reading-layout.markdown-collapsed .markdown-pane{width:0;overflow:hidden}
+.reading-layout .pdf-pane{grid-column:1;grid-row:1}.reading-layout .reader-divider{grid-column:2;grid-row:1}.reading-layout .markdown-pane{grid-column:3;grid-row:1}
+.reading-layout .pdf-rail,.reading-layout .markdown-rail{display:none!important}
+.reader-divider{background:linear-gradient(to right,transparent 2px,#e1e5eb 2px,#e1e5eb 3px,transparent 3px)}.reader-divider:hover{background:var(--accent)}
+.pane-label{background:#fafbfc;border-bottom-color:#edf0f3;height:29px;text-transform:none;letter-spacing:normal}.pane-label #pdfName,.markdown-pane .pane-label{display:none}
+.reading-layout:not(.pdf-only) .mineru-parse-bar{display:inline-flex}.mineru-parse-bar{position:relative}.pdf-pane .pane-label{overflow:visible;z-index:5}.pdf-parse-menu{z-index:95}
+.notes-panel,.ai-panel{box-shadow:none}.quiet-note-tabs{flex:none;margin:10px 12px 0}.quiet-note-tabs button{flex:1;padding:6px 5px}
+.notes-heading .quiet-menu-body{min-width:240px}.quiet-menu-body .notes-layout-switch{margin:0 0 8px}
+.notes-panel[data-content-tab=notes] .annotation-list,.notes-panel[data-content-tab=notes] .annotation-list-heading{display:none}
+.notes-panel[data-content-tab=annotations] .paper-note-section{display:none}
+.notes-panel[data-content-tab=notes] .paper-note-section{flex:1;max-height:none}
+.notes-panel[data-content-tab=annotations] .annotation-list{flex:1}
+.quiet-selection-tools{position:fixed;z-index:120;display:flex;gap:4px;padding:5px;border:1px solid var(--line);border-radius:9px;background:#fff;box-shadow:0 6px 22px #27344826}
+.quiet-selection-tools[hidden]{display:none}.quiet-selection-tools button{font-size:12px;padding:6px 10px}
+button:focus-visible,summary:focus-visible{outline:2px solid #6e96ce;outline-offset:2px}
+@media(max-width:1250px){.app-header{gap:8px;padding:0 10px}.brand{flex-basis:140px}.brand small{max-width:115px}.quiet-reading-modes button{padding:7px 8px}.header-controls{gap:6px}.app-header .button{padding:0 8px}.header-actions{gap:5px}.app-header .third-party-credit{flex-basis:155px;width:155px}}
+@media(max-width:1000px){.app-header{height:auto;min-height:64px;flex-wrap:wrap;padding-top:8px;padding-bottom:8px}.header-actions{margin-left:auto}.app-shell{height:calc(100% - 112px)}.brand{flex-basis:140px}.header-controls{flex:1}.header-actions #chooseRoot{display:inline-flex}}
+@media(min-width:1001px) and (max-width:1450px){.ai-panel{width:min(var(--ai-width,440px),26vw);min-width:280px}.notes-panel{width:min(var(--notes-width,330px),23vw)}.markdown-content{padding-left:24px;padding-right:24px}}
+.paper-toolbar .save-state{margin-left:auto;white-space:nowrap;font-size:10px;width:auto}
+.workspace{container-type:inline-size}
+@container(max-width:680px){.paper-toolbar .paper-identity{flex-basis:100%;min-width:0}.paper-toolbar{gap:6px;padding:8px 12px}.paper-toolbar .button{font-size:11px;padding:4px 6px}.paper-toolbar .reading-status button{padding:5px 7px}}
+/* Final sidebar headings and consistent action icons. */
+.explorer-heading{padding:0 12px;letter-spacing:normal;gap:8px}.explorer-heading-actions{gap:8px;min-width:0}.explorer-heading-actions .plain-text-button{font-size:11px;white-space:nowrap}.explorer-heading-actions #collapseExplorer{margin-left:2px;flex:none}.explorer-heading>span{white-space:nowrap}
+.interface-icon{display:inline-block;width:17px;height:17px;flex:none;fill:none;stroke:currentColor;stroke-width:1.6;stroke-linecap:round;stroke-linejoin:round;vertical-align:-3px}
+#favoritePaper{display:inline-flex;align-items:center;gap:5px}#favoritePaper.active .interface-icon,.favorite-marker .interface-icon{fill:#e8b65a;stroke:#b98529}.favorite-marker .interface-icon{width:13px;height:13px}.tree-row.attachment .interface-icon{width:15px;height:15px;color:#70829a}.attachment-list-row .interface-icon{margin-right:4px}
+.paper-toolbar .quiet-menu-body>button{display:flex;align-items:center;justify-content:flex-start;gap:10px;min-height:36px;width:100%;height:auto;box-sizing:border-box;text-align:left;padding:9px 11px!important;white-space:nowrap;line-height:1.5}
+.quiet-menu-body #recyclePaper::after{content:none}.quiet-menu-body #recyclePaper svg{width:17px;height:17px;margin:0}.quiet-menu-body #recyclePaper{width:100%;height:auto;display:flex;justify-content:flex-start}
+.quiet-note-tab-row{display:flex;align-items:center;gap:7px;padding:10px 12px;border-bottom:1px solid #edf0f3;flex:none;background:#fff}.quiet-note-tab-row .quiet-note-tabs{margin:0;flex:1;min-width:0}.quiet-note-tab-row #closeNotes{flex:none;padding:4px;font-size:21px;color:#758399}
+.paper-note-heading{gap:6px;flex-wrap:wrap}.paper-note-heading label{font-size:11px;white-space:nowrap;margin-right:auto}.paper-note-heading .notes-layout-switch{margin:0;padding:2px;gap:1px;border:0;border-radius:6px;flex:none}.paper-note-heading .notes-layout-switch button{font-size:10px;padding:4px 3px}.paper-note-heading .note-view-tabs button{font-size:10px;padding:4px 5px}
+.notes-panel:not([data-content-tab=both]) .notes-layout-switch{display:none}.paper-note-footer #expandPaperNote{border:0;background:none;padding:0;font-size:11px;color:#66798f;white-space:nowrap}
+@container(max-width:680px){.paper-toolbar .paper-identity{flex:1 1 calc(100% - 40px);order:0}.paper-toolbar>.quiet-menu{order:0}.paper-toolbar>:not(.paper-identity):not(.quiet-menu){order:1}}
+.paper-note-heading .notes-layout-switch{gap:2px}.paper-note-heading .notes-layout-switch button{flex:none;min-width:max-content;padding:5px 4px}
+/* One continuous PDF toolbar; right-side menus stay inside the reading pane. */
+.pdf-pane .pdf-unified-actions{position:absolute;right:0;top:0;width:auto;height:35px;padding:0 5px 0 6px;display:flex;align-items:center;justify-content:flex-end;gap:3px;background:#fafbfc;border:0;border-bottom:1px solid #e5e8ed;z-index:15;letter-spacing:normal;overflow:visible}
+.pdf-unified-actions .mineru-parse-bar{position:static;margin:0;display:flex;align-items:center;max-width:none!important}
+.pdf-unified-actions #mineruParse{font-size:12px;padding:5px 6px;white-space:nowrap}.pdf-unified-actions #collapsePdf{display:inline-flex;margin:0;padding:3px 5px;align-items:center;justify-content:center;font-size:20px;min-width:24px}.pdf-unified-actions #collapsePdf:disabled{opacity:.35;cursor:default}
+.pdf-unified-actions .pdf-parse-menu{right:0;left:auto;top:100%;width:260px;max-width:calc(100vw - 24px);text-align:left;box-sizing:border-box;overflow:visible;letter-spacing:normal}
+.pdf-unified-actions .quiet-menu>summary{font-size:17px;padding:2px 6px;line-height:24px}.pdf-unified-actions .quiet-menu-body{min-width:0;width:135px;right:0;left:auto;padding:5px;top:calc(100% + 2px)}
+.pdf-unified-actions .quiet-menu-body>button,.pdf-unified-actions .quiet-menu-body>a{display:flex;align-items:center;width:100%;height:32px;box-sizing:border-box;padding:6px 10px!important;margin:0;border:0;background:transparent;border-radius:5px;color:#536176;text-decoration:none;font:12px/20px system-ui,'Microsoft YaHei',sans-serif;white-space:nowrap;text-align:left;cursor:pointer}
+.pdf-unified-actions .quiet-menu-body>a:hover{background:#f0f3f8}.pdf-unified-actions .quiet-menu-body>button:hover{background:#f0f3f8}
+.quiet-menu-body .library-scope{gap:2px}.quiet-menu-body .library-scope button,.quiet-menu-body .library-scope .scope-shortcuts button{justify-content:flex-start;gap:9px;min-height:32px;height:32px;padding:6px 10px;font-size:12px;line-height:20px;border:0;margin:0;box-shadow:none}.quiet-menu-body .library-scope button svg{width:16px;height:16px}.quiet-menu-body .library-scope button span{white-space:nowrap}
+@media(max-width:1250px){#toggleImmersive{padding:0 8px;font-size:11px}.app-header .brand{flex-basis:125px;min-width:110px}}

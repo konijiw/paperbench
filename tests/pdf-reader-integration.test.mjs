@@ -90,6 +90,8 @@ try {
     await frame.waitForTimeout(300);return frame;
   }
   async function selectPdf(frame,text){
+    await frame.locator('.page[data-page-number="1"] .textLayer span').filter({hasText:text}).first().scrollIntoViewIfNeeded();
+    await frame.waitForTimeout(250);
     await frame.evaluate(text=>{
       const span=[...document.querySelectorAll('.page[data-page-number="1"] .textLayer span')].find(s=>s.textContent===text);
       if(!span)throw new Error('Missing PDF text '+text);
@@ -154,7 +156,7 @@ try {
   assert.equal(await page.evaluate(()=>window.__annotationClicks.length),clickCount);
   await frame.evaluate(()=>window.__testLink.remove());
   checks.push('drag selection and PDF links do not trigger reverse annotation navigation');
-  await selectPdf(frame,fresh);await page.locator('#annotateSelection').click();
+  await selectPdf(frame,fresh);await frame.locator('#selectionTools [data-action=annotate]').click();
   await page.locator('#annotationText').fill('New PDF comment');await page.locator('#confirmAnnotation').click();await waitSaved();
   let review=await getReview('dual'),added=review.annotations.find(a=>a.comment==='New PDF comment');
   assert.equal(added.source,'pdf');assert.equal(added.pdfAnchor.version,1);assert.equal(added.pdfAnchor.fragments[0].page,1);
@@ -167,18 +169,18 @@ try {
   await page.waitForSelector(`.annotation-card.active[data-id="${added.id}"]`);
   checks.push('new PDF annotation also supports reverse navigation');
   // MD-only view: clicking the PDF annotation must stay in MD.
-  await page.locator('#togglePdf').click();
+  await page.locator('[data-reading-mode=markdown]').click();await page.waitForTimeout(300);
   await page.locator(`.annotation-card[data-id="${added.id}"] .annotation-quote`).click();
   assert.ok((await page.locator('#readingLayout').getAttribute('class')).includes('pdf-collapsed'));
   assert.ok(await page.locator(`#markdownContent mark[data-annotation-id="${added.id}"].active`).count());
   checks.push('MD-only navigation does not force PDF open');
   // PDF-only view: old MD annotations must not force MD open.
-  await page.locator('#togglePdf').click();await page.locator('#toggleMarkdown').click();
+  await page.locator('[data-reading-mode=pdf]').click();
   await page.locator('.annotation-card[data-id="legacy-md"] .annotation-quote').click();
   assert.ok((await page.locator('#readingLayout').getAttribute('class')).includes('markdown-collapsed'));
   checks.push('PDF-only navigation resolves old MD annotations without opening MD');
   frame=await pdfFrame();await mockTranslate();await selectPdf(frame,shared);
-  await page.locator('#translateSelection').click();await waitSaved();
+  await frame.locator('#selectionTools [data-action=translate]').click();await waitSaved();
   review=await getReview('dual');
   const translation=review.annotations.find(a=>a.kind==='translation');
   assert.equal(translation.source,'pdf');assert.equal(translation.quote,shared);assert.ok(translation.pdfAnchor.fragments.length);
@@ -195,11 +197,11 @@ try {
   assert.ok((await page.locator('#readingLayout').getAttribute('class')).includes('markdown-collapsed'));
   checks.push('existing note source links route to visible PDF');
   // Provider failure leaves the quote available to retry.
-  await mockTranslate('failure');await selectPdf(frame,fresh);await page.locator('#translateSelection').click();
+  await mockTranslate('failure');await selectPdf(frame,fresh);await frame.locator('#selectionTools [data-action=translate]').click();
   await page.waitForFunction(()=>document.getElementById('toast').textContent.includes('Simulated provider failure'));
   assert.equal(await page.locator('#translateSelection').isEnabled(),true);checks.push('failed PDF translation can retry');
   // Reopening keeps anchors and comments; PDF-only notes can use the same UI.
-  await open('only');frame=await pdfFrame();await selectPdf(frame,fresh);await page.locator('#annotateSelection').click();
+  await open('only');frame=await pdfFrame();await selectPdf(frame,fresh);await frame.locator('#selectionTools [data-action=annotate]').click();
   await page.locator('#annotationText').fill('PDF-only comment');await page.locator('#confirmAnnotation').click();await waitSaved();
   let only=await getReview('only');assert.equal(only.annotations[0].comment,'PDF-only comment');
   await page.locator('.annotation-card [data-action="note"]').click();await waitSaved();
@@ -209,14 +211,14 @@ try {
   assert.ok((await getReview('only')).annotations.find(a=>a.kind==='translation'&&a.pdfAnchor));
   checks.push('PDF-only floating selection translation');
   // A late translation must not land on another paper.
-  await mockTranslate('deferred');await selectPdf(frame,fresh);await page.locator('#translateSelection').click();
+  await mockTranslate('deferred');await selectPdf(frame,fresh);await frame.locator('#selectionTools [data-action=translate]').click();
   await page.waitForFunction(()=>typeof window.__finishTranslation==='function');
   await open('dual');const count=(await getReview('dual')).annotations.length;
   await page.evaluate(()=>window.__finishTranslation('SHOULD NOT SAVE'));
   await page.waitForTimeout(800);assert.equal((await getReview('dual')).annotations.length,count);
   checks.push('late translation cannot cross paper switch');
   // Legacy Markdown selection still enters the original translation path.
-  await page.locator('#toggleMarkdown').click();await page.locator('#togglePdf').click();
+  await page.locator('[data-reading-mode=markdown]').click();await page.waitForTimeout(300);
   await mockTranslate();
   await page.locator('#markdownContent').evaluate(element=>{
     const walker=document.createTreeWalker(element,NodeFilter.SHOW_TEXT);let node;
@@ -228,7 +230,7 @@ try {
   await page.locator('#translateSelection').click();await waitSaved();
   assert.ok((await getReview('dual')).annotations.find(a=>a.kind==='translation'&&a.source==='markdown'&&!a.pdfAnchor));
   checks.push('Markdown selection and translation regression');
-  await page.locator('#togglePdf').click();frame=await pdfFrame();
+  await page.locator('[data-reading-mode=both]').click();frame=await pdfFrame();
   // Repeated quote without distinguishing context must report ambiguity.
   await frame.evaluate(({paper,session})=>window.postMessage({type:'noop'},location.origin),{paper:'dual',session:''});
   await page.evaluate(()=>{
@@ -237,7 +239,7 @@ try {
   });
   await page.waitForFunction(()=>document.getElementById('toast').textContent.includes('多个相同引文'));
   checks.push('ambiguous PDF quote does not silently choose a location');
-  await page.reload();await open('dual');frame=await pdfFrame();
+  await page.reload();await open('dual');frame=await pdfFrame();await page.locator('[data-note-tab=annotations]').click();
   const persisted=await getReview('dual');assert.ok(persisted.annotations.find(a=>a.id===added.id&&a.pdfAnchor));
   assert.equal(persisted.annotations.find(a=>a.id==='legacy-md').comment,legacy.comment);
   checks.push('reload and server serialization preserve old and new annotations');
@@ -270,14 +272,14 @@ try {
   await frame.waitForSelector('.textLayer .highlight',{timeout:15000});
   await frame.locator('#searchClose').click();await frame.locator('#zoom').selectOption('page-width');await frame.waitForTimeout(300);
   checks.push('embedded reader Ctrl-wheel, middle drag and PDF search');
-  await frame.locator('#zoom').selectOption('1.5');await frame.locator('#rotate').click();await frame.waitForTimeout(400);
+  await frame.locator('#zoom').selectOption('1.5');await page.locator('#pdfMoreTools summary').click();await page.locator('#rotatePdf').click();await frame.waitForTimeout(400);
   const rotated=frame.locator(`.pb-highlight-target[data-annotation-id="${added.id}"]`).first();
   await rotated.evaluate(el=>el.scrollIntoView({block:'center',inline:'center'}));await frame.waitForTimeout(100);
   const rotatedBounds=await rotated.boundingBox(),locatesBeforeClick=await frame.evaluate(()=>window.__locates);
   await page.mouse.click(rotatedBounds.x+rotatedBounds.width/2,rotatedBounds.y+rotatedBounds.height/2);
   await page.waitForSelector(`.annotation-card.active[data-id="${added.id}"]`);
   assert.equal(await frame.evaluate(()=>window.__locates),locatesBeforeClick);
-  for(let i=0;i<3;i++)await frame.locator('#rotate').click();
+  for(let i=0;i<3;i++){await page.locator('#pdfMoreTools summary').click();await page.locator('#rotatePdf').click();}
   await frame.locator('#zoom').selectOption('page-width');await frame.waitForTimeout(350);
   checks.push('reverse navigation remains accurate after PDF zoom and rotation');
   const realResults=[];

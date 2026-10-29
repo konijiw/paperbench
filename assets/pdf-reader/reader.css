@@ -4,3 +4,8 @@
 .pb-capture-layer{position:fixed;z-index:100;cursor:crosshair;touch-action:none;background:#0002;user-select:none}
 .pb-capture-box{position:absolute;border:1px solid #3b82f6;background:#3b82f617;pointer-events:none;box-shadow:0 0 0 1px #fff8}
 .pb-capture-hint{position:absolute;top:8px;left:50%;transform:translateX(-50%);display:flex;align-items:center;gap:12px;padding:6px 10px;border-radius:6px;background:#fff;box-shadow:0 2px 8px #0003;white-space:nowrap;font-size:12px;cursor:default}
+
+nav{flex-wrap:nowrap;gap:3px;background:#fafbfc;border-bottom-color:#e5e8ed}nav button,nav select{border-color:transparent;background:transparent}#zoom{min-width:0;max-width:100px}.pdf-more{position:relative;margin-left:auto}.pdf-more summary{list-style:none;cursor:pointer;padding:3px 7px}.pdf-more summary::-webkit-details-marker{display:none}.pdf-more>div{position:absolute;right:0;top:100%;width:155px;padding:7px;border:1px solid #dce1e8;border-radius:7px;background:white;box-shadow:0 6px 20px #26334625;z-index:1100}.pdf-more>div>*{display:block;padding:7px;width:100%;text-align:left}.pdf-more #rotate::after{content:" 旋转 90°"}
+/* Parent toolbar supplies parse, more and collapse actions on this same row. */
+nav{height:35px;min-height:35px;padding-right:142px;overflow:hidden}.pdf-more{display:none}
+@media(max-width:520px){nav #minus,nav #plus{display:none}nav{gap:2px;padding-left:4px}nav button{padding:3px 4px}#page{width:34px}#zoom{max-width:80px}#searchToggle{font-size:11px}}

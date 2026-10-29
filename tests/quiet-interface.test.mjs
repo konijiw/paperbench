@@ -1,0 +1,61 @@
+import {createRequire} from 'node:module';
+import {spawn} from 'node:child_process';
+import path from 'node:path';
+import {readFile} from 'node:fs/promises';
+import assert from 'node:assert/strict';
+const require=createRequire(path.join(process.env.PDF_LAB_MODULES,'_test.cjs'));
+const {chromium}=require('playwright');
+const root=process.cwd()+'/tests/runtime/pdf-integration';
+const host=spawn(root+'/TestHost.exe',[root+'/PaperBench.exe'],{windowsHide:true,stdio:['ignore','pipe','pipe']});
+let browser;
+try{
+const url=await new Promise((resolve,reject)=>{host.stdout.on('data',b=>{let m=/PDF_TEST_URL=(http:\/\/127\.0\.0\.1:\d+)/.exec(b.toString());if(m)resolve(m[1]);});host.on('error',reject);});
+browser=await chromium.launch({headless:true,executablePath:process.env.PDF_LAB_CHROME});
+const page=await browser.newPage({viewport:{width:1600,height:1000}}), errors=[];
+page.on('pageerror',e=>errors.push(e.message));
+await page.route('**/assets/zcs/ai-chat.js',r=>r.fulfill({contentType:'application/javascript',body:'window.AILiteratureChat={mount:async()=>{},setPaper:async()=>{},focus:()=>{},addTextSelection:()=>true};'}));
+await page.goto(url);await page.waitForSelector('.quiet-library-controls');
+await page.locator('.tree-row.paper[data-paper="dual"]').click();await page.waitForSelector('#paperView:not(.hidden)');await page.waitForFunction(()=>document.getElementById('paperTitle').textContent==='dual');await page.waitForTimeout(500);
+await page.locator('[data-reading-mode="pdf"]').click();await page.waitForTimeout(300);
+assert(await page.locator('#readingLayout').evaluate(n=>n.classList.contains('markdown-collapsed')));
+await page.locator('#mineruParse').click();await page.locator('#pdfParseText').waitFor({state:'visible'});
+const parseBounds=await page.locator('#pdfParseMenu').boundingBox(),paneBounds=await page.locator('.pdf-pane').boundingBox();assert(parseBounds.x>=paneBounds.x);assert(parseBounds.x+parseBounds.width<=paneBounds.x+paneBounds.width+1);await page.screenshot({path:root+'/unified-pdf-parse.png'});
+await page.keyboard.press('Escape');await page.locator('#pdfMoreTools summary').click();assert(await page.locator('#rotatePdf').isVisible());await page.screenshot({path:root+'/unified-pdf-more.png'});await page.keyboard.press('Escape');
+await page.locator('#toggleImmersive').click();await page.waitForFunction(()=>!!document.fullscreenElement);await page.locator('#toggleImmersive').click();await page.waitForFunction(()=>!document.fullscreenElement);
+await page.locator('.quiet-library-controls summary').first().click();const scopeLefts=await page.locator('#libraryScope button span').evaluateAll(nodes=>nodes.map(n=>Math.round(n.getBoundingClientRect().left)));assert.equal(new Set(scopeLefts).size,1);await page.keyboard.press('Escape');
+await page.locator('[data-reading-mode="markdown"]').click();await page.waitForTimeout(300);
+assert(await page.locator('#readingLayout').evaluate(n=>n.classList.contains('pdf-collapsed')));
+await page.locator('#editMetadata').click();assert(await page.locator('#metadataDialog').isVisible());await page.keyboard.press('Escape');
+await page.locator('.quiet-library-controls summary').nth(1).click();await page.locator('#treeMode [data-mode=tags]').click();
+await page.locator('.quiet-library-controls summary').nth(2).click();await page.locator('#statusFilters [data-filter=unread]').click();
+await page.reload();await page.waitForSelector('.quiet-library-controls');assert.match(await page.locator('.quiet-library-controls').innerText(),/标签浏览/);assert.match(await page.locator('.quiet-filter-chips').innerText(),/未读/);
+await page.locator('.tree-row.paper[data-paper="dual"]').click();await page.waitForSelector('#paperView:not(.hidden)');await page.waitForFunction(()=>document.getElementById('paperTitle').textContent==='dual');await page.waitForTimeout(500);
+await page.locator('[data-reading-mode="markdown"]').click();
+await page.locator('#markdownContent').evaluate(n=>{const t=n.querySelector('p');const r=document.createRange();r.selectNodeContents(t);window.getSelection().removeAllRanges();window.getSelection().addRange(r);n.dispatchEvent(new MouseEvent('mouseup',{bubbles:true}));});
+await page.waitForSelector('.quiet-selection-tools:not([hidden])');await page.locator('#annotateSelection').click();await page.locator('#annotationText').fill('UI regression annotation');await page.locator('#confirmAnnotation').click();
+await page.waitForTimeout(800);assert(await page.locator('#annotationList').isVisible());
+await page.locator('#toggleNotes').click();await page.waitForTimeout(300);assert.equal(await page.locator('#notesPanel').evaluate(n=>n.getBoundingClientRect().width),0);
+await page.locator('#toggleNotes').click();await page.locator('.quiet-note-tabs [data-note-tab=notes]').click();assert(await page.locator('#paperNotePreview').isVisible());
+assert.equal(await page.locator('.notes-heading').count(),0);
+assert(await page.locator('.explorer-heading #manageTags').isVisible());
+assert.equal(await page.locator('.explorer-heading-actions').evaluate(n=>n.lastElementChild.id),'collapseExplorer');
+assert(!(await page.locator('#notesLayoutSwitch').isVisible()));
+await page.locator('[data-note-tab=both]').click();assert(await page.locator('.paper-note-heading #notesLayoutSwitch').isVisible());await page.screenshot({path:root+'/quiet-both-notes.png'});
+await page.locator('#notesLayoutSwitch [data-notes-layout=notes]').click();assert.equal(await page.locator('#notesPanel').getAttribute('data-content-tab'),'both');
+await page.locator('[data-note-tab=notes]').click();assert(!(await page.locator('#notesLayoutSwitch').isVisible()));
+await page.locator('.paper-toolbar .quiet-menu summary').click();
+const menuAlignment=await page.locator('.paper-toolbar .quiet-menu-body>button').evaluateAll(nodes=>nodes.map(n=>({x:n.querySelector('span').getBoundingClientRect().x,w:n.getBoundingClientRect().width})));
+assert.equal(menuAlignment[0].x,menuAlignment[1].x);assert.equal(menuAlignment[0].w,menuAlignment[1].w);await page.keyboard.press('Escape');
+assert.equal(await page.locator('#favoritePaper .interface-icon').count(),1);
+for(const width of [1920,1600,1280,1024]){
+ await page.setViewportSize({width,height:1000});await page.waitForTimeout(350);
+ assert(await page.locator('.header-controls').evaluate(n=>n.scrollWidth<=n.clientWidth+1),'header overflow '+width);
+ await page.screenshot({path:root+'/quiet-'+width+'.png'});
+}
+const saved=JSON.parse(await readFile(root+'/state/ai-literature-reader/settings.json','utf8'));assert.equal(saved.libraryView.viewMode,'tags');assert.equal(saved.libraryView.filter,'unread');
+const fresh=await browser.newPage();await fresh.route('**/assets/zcs/ai-chat.js',r=>r.fulfill({contentType:'application/javascript',body:'window.AILiteratureChat={mount:async()=>{},setPaper:async()=>{},focus:()=>{}};'}));await fresh.goto(url);await fresh.waitForSelector('.tree-row.paper');assert.match(await fresh.locator('.quiet-library-controls').innerText(),/标签浏览/);assert.match(await fresh.locator('.quiet-filter-chips').innerText(),/未读/);await fresh.close();
+const restarted=spawn(root+'/TestHost.exe',[root+'/PaperBench.exe'],{windowsHide:true,stdio:['ignore','pipe','pipe']});
+try { const restartedUrl=await new Promise((resolve,reject)=>{restarted.stdout.on('data',b=>{const m=/PDF_TEST_URL=(http:\/\/127\.0\.0\.1:\d+)/.exec(b.toString());if(m)resolve(m[1]);});restarted.on('error',reject);});const restored=await (await fetch(restartedUrl+'/api/library-view')).json();assert.equal(restored.viewMode,'tags');assert.equal(restored.filter,'unread'); } finally {restarted.kill();}
+await page.locator('.tree-row.paper[data-paper=only]').click();await page.waitForFunction(()=>document.getElementById('paperTitle').textContent==='only');await page.waitForTimeout(300);assert.equal(await page.locator('[data-reading-mode=markdown]').innerText(),'MD');assert(await page.locator('[data-reading-mode=markdown]').isDisabled());assert(await page.locator('[data-reading-mode=both]').isDisabled());assert(await page.locator('[data-reading-mode=pdf]').isEnabled());
+assert.deepEqual(errors,[]);console.log('PASS: reading modes, parse menu, metadata, remembered tag/status filters, Markdown selection annotation, note tabs, collapsed panels, header widths; no browser errors.');
+}catch(e){console.error(e);throw e;}finally{await browser?.close();host.kill();}

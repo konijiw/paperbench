@@ -39,6 +39,142 @@
     els[id] = document.getElementById(id);
   });
 
+
+  // Reuse the original nodes and handlers so all existing actions stay available.
+  function interfaceIcon(name) {
+    var paths = {
+      star: '<path d="m12 3 2.8 5.7 6.3.9-4.6 4.5 1.1 6.3-5.6-3-5.6 3 1.1-6.3L2.9 9.6l6.3-.9Z"/>',
+      film: '<rect x="3" y="4" width="18" height="16" rx="2"/><path d="M7 4v16M17 4v16M3 8h4M3 12h4M3 16h4M17 8h4M17 12h4M17 16h4"/>',
+      file: '<path d="M14 3H6a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9Z"/><path d="M14 3v6h6M8 13h8M8 17h6"/>',
+      clip: '<path d="m9 16 7-7a3 3 0 0 0-4.2-4.2l-7 7a5 5 0 0 0 7.1 7.1l7-7M8 13l7-7"/>',
+      archive: '<rect x="4" y="7" width="16" height="14" rx="2"/><path d="M3 3h18v4H3ZM9 11h6"/>',
+      trash: '<path d="M4 7h16M9 7V4h6v3M6 7l1 13h10l1-13M10 10v6M14 10v6"/>',
+      folder: '<path d="M3 7V5a2 2 0 0 1 2-2h5l2 3h7a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2Z"/>'
+    };
+    return '<svg class="interface-icon" viewBox="0 0 24 24" aria-hidden="true">' + (paths[name] || paths.file) + '</svg>';
+  }
+
+  function initializeQuietInterface() {
+    function node(tag, cls, text) { var n = document.createElement(tag); n.className = cls || ''; if (text) n.textContent = text; return n; }
+    function menu(parent, label) {
+      var d = node('details', 'quiet-menu'), summary = node('summary', '', label), body = node('div', 'quiet-menu-body');
+      d.append(summary, body); parent.append(d);
+      body.addEventListener('click', function (e) { if (e.target.closest('button')) d.open = false; });
+      return { root:d, summary:summary, body:body };
+    }
+    document.addEventListener('click', function (e) { document.querySelectorAll('.quiet-menu[open]').forEach(function (d) { if (!d.contains(e.target)) d.open = false; }); });
+    document.addEventListener('keydown', function (e) { if (e.key === 'Escape') document.querySelectorAll('.quiet-menu[open]').forEach(function (d) { d.open = false; }); });
+    var heading = document.querySelector('.explorer-heading-actions');
+    heading.replaceChildren(els.showDuplicates, els.manageTags, els.paperCount, els.collapseExplorer);
+    els.collapseExplorer.title = '收起论文库';
+    var search = els.treeSearch.closest('.search-box');
+    var controls = node('div', 'quiet-library-controls'); search.after(controls);
+    var scopeMenu = menu(controls, '全部论文'), modeMenu = menu(controls, '文件目录'), filterMenu = menu(controls, '筛选');
+    scopeMenu.body.append(els.libraryScope); modeMenu.body.append(els.treeMode); filterMenu.body.append(els.statusFilters);
+    var chips = node('div', 'quiet-filter-chips'); controls.after(chips);
+    var scopes = {all:'全部论文',favorites:'收藏',recent:'最近阅读',added:'最新加入'};
+    var filters = {all:'全部状态',unread:'未读',skimmed:'粗读',deep:'精读'};
+    try {
+      var prefs = JSON.parse(localStorage.getItem('paperbench.library-view') || '{}');
+      if (scopes[prefs.scope]) state.scope = prefs.scope;
+      if (filters[prefs.filter]) state.filter = prefs.filter;
+      if (['files','tags'].indexOf(prefs.viewMode) >= 0) state.viewMode = prefs.viewMode;
+    } catch (_) {}
+    window.paperbenchQuietSync = function () {
+      scopeMenu.summary.textContent = scopes[state.scope] + ' ▾';
+      modeMenu.summary.textContent = (state.viewMode === 'tags' ? '标签浏览' : '文件目录') + ' ▾';
+      filterMenu.summary.textContent = '筛选' + (state.filter !== 'all' ? ' · 1' : '');
+      [[els.libraryScope,'scope',state.scope],[els.treeMode,'mode',state.viewMode],[els.statusFilters,'filter',state.filter]].forEach(function (group) {
+        group[0].querySelectorAll('button').forEach(function (b) { var active = b.dataset[group[1]] === group[2]; b.classList.toggle('active',active); b.setAttribute('aria-pressed',String(active)); });
+      });
+      els.treeSearch.placeholder = state.viewMode === 'tags' ? '搜索论文标题、标签或文件名' : '搜索论文标题或文件名';
+      chips.replaceChildren();
+      [['scope',state.scope,'all',scopes],['filter',state.filter,'all',filters]].forEach(function (item) {
+        if (item[1] === item[2]) return;
+        var b = node('button', '', item[3][item[1]] + ' ×'); b.type = 'button'; b.setAttribute('aria-label','清除'+item[3][item[1]]);
+        b.onclick = function () { state[item[0]] = item[2]; renderTree(); }; chips.append(b);
+      });
+      chips.hidden = !chips.childElementCount;
+      var preferenceBody = JSON.stringify({scope:state.scope,filter:state.filter,viewMode:state.viewMode});
+      try { localStorage.setItem('paperbench.library-view', preferenceBody); } catch (_) {}
+      if (window.paperbenchLibraryReady && window.paperbenchLibrarySaved !== preferenceBody) {
+        window.paperbenchLibrarySaved = preferenceBody;
+        window.paperbenchLibraryWrite = (window.paperbenchLibraryWrite || Promise.resolve()).then(function(){return api('/api/library-view', {method:'POST',headers:{'Content-Type':'application/json'},body:preferenceBody});}).catch(function(error){ window.paperbenchLibrarySaved = ''; showToast('浏览设置保存失败：'+error.message); });
+      }
+    };
+    window.paperbenchQuietSync();
+    var toolbar = document.querySelector('.paper-toolbar');
+    toolbar.append(els.editMetadata, document.getElementById('openCitations'));
+    toolbar.append(els.saveState);
+    var paperMenu = menu(toolbar, '⋯'); paperMenu.summary.setAttribute('aria-label','当前论文更多操作'); paperMenu.body.append(document.getElementById('recyclePaper'));
+    var recycle = document.getElementById('recyclePaper'); recycle.classList.remove('recycle-icon'); recycle.innerHTML = interfaceIcon('trash') + '<span>移至回收站</span>';
+    var folder = node('button',''); folder.innerHTML = interfaceIcon('folder') + '<span>打开所在文件夹</span>'; folder.type='button'; folder.onclick=function(){els.paperLocation.click();}; paperMenu.body.prepend(folder);
+    var panelControls = document.querySelector('.panel-controls');
+    var modes = node('div','quiet-reading-modes'); modes.setAttribute('aria-label','阅读方式');
+    [['pdf','PDF'],['markdown','MD'],['both','对照']].forEach(function (item) {
+      var b=node('button','',item[1]); b.type='button'; b.dataset.readingMode=item[0];
+      b.onclick=function(){ if(!state.currentPaper)return; if(item[0]==='pdf')setMarkdownCollapsed(true); else if(item[0]==='markdown')setPdfCollapsed(true); else {setPdfCollapsed(false);setMarkdownCollapsed(false);} syncReadingModes(); }; modes.append(b);
+    });
+    panelControls.prepend(modes); els.togglePdf.classList.add('quiet-legacy'); els.toggleMarkdown.classList.add('quiet-legacy');
+    var immersive = node('button','header-panel-toggle','沉浸模式'); immersive.id='toggleImmersive'; immersive.type='button'; immersive.setAttribute('aria-pressed','false');
+    panelControls.append(immersive);
+    immersive.onclick=async function(){
+      try { if(document.fullscreenElement) await document.exitFullscreen(); else await document.documentElement.requestFullscreen(); }
+      catch(error){showToast('无法切换全屏：'+error.message);}
+    };
+    document.addEventListener('fullscreenchange',function(){var active=!!document.fullscreenElement;immersive.textContent=active?'退出沉浸':'沉浸模式';immersive.setAttribute('aria-pressed',String(active));});
+    var pdfToolbar=els.collapsePdf.parentElement;
+    pdfToolbar.classList.add('pdf-unified-actions');
+    Array.from(pdfToolbar.children).forEach(function(child){if(child!==els.mineruParseBar && child!==els.collapsePdf)child.classList.add('quiet-legacy');});
+    var pdfMore=menu(pdfToolbar,'⋯');pdfMore.root.id='pdfMoreTools';pdfMore.summary.setAttribute('aria-label','更多 PDF 工具');
+    var rotate=node('button','','旋转 90°');rotate.id='rotatePdf';rotate.type='button';rotate.onclick=function(){pdfCommand('rotate');};
+    var original=node('a','','原始文件');original.id='pdfOriginalLink';original.target='_blank';original.rel='noopener noreferrer';
+    pdfMore.body.append(rotate,original);pdfToolbar.append(els.collapsePdf);
+    els.collapsePdf.setAttribute('aria-label','折叠 PDF');
+
+    function syncReadingModes(){
+      if(!state.currentPaper)return;
+      var review=state.currentPaper.review, only=!state.currentPaper.hasMarkdown;
+      original.href='/content/pdf?paper='+encodeURIComponent(state.currentPath);
+      els.collapsePdf.disabled=only; els.collapsePdf.title=only?'当前只有 PDF':'折叠 PDF';
+      modes.querySelectorAll('button').forEach(function(b){ var mode=only?'pdf':review.pdfCollapsed?'markdown':review.markdownCollapsed?'pdf':'both'; b.setAttribute('aria-pressed',String(b.dataset.readingMode===mode)); b.disabled=only&&b.dataset.readingMode!=='pdf'; b.title=b.disabled?'当前论文没有 MD，解析 PDF 后可用':''; });
+    }
+    new MutationObserver(syncReadingModes).observe(els.readingLayout,{attributes:true,attributeFilter:['class']}); syncReadingModes();
+    var floatTools=node('div','quiet-selection-tools'); floatTools.setAttribute('role','toolbar'); floatTools.setAttribute('aria-label','原文选区操作');
+    floatTools.append(els.annotateSelection,els.translateSelection,els.sendSelectionToAi); document.body.append(floatTools);
+    function syncSelectionTools(){
+      var visible = !els.sendSelectionToAi.disabled && (state.selectedImage || (state.selectedText && state.selectedText.source !== 'pdf'));
+      floatTools.hidden=!visible;
+      if(!visible)return;
+      var selection=window.getSelection(), rect;
+      if(state.selectedImage){var img=els.markdownContent.querySelector('.ai-image-selected'); if(img)rect=img.getBoundingClientRect();}
+      else if(selection && selection.rangeCount)rect=selection.getRangeAt(0).getBoundingClientRect();
+      if(rect){floatTools.style.left=Math.max(8,Math.min(window.innerWidth-floatTools.offsetWidth-8,rect.left))+'px';floatTools.style.top=Math.max(8,Math.min(window.innerHeight-floatTools.offsetHeight-8,rect.top-floatTools.offsetHeight-8))+'px';}
+    }
+    floatTools.addEventListener('mousedown',function(e){if(e.target.closest('button'))e.preventDefault();});
+    new MutationObserver(syncSelectionTools).observe(els.sendSelectionToAi,{attributes:true,childList:true});
+    els.markdownContent.addEventListener('mouseup',function(){setTimeout(syncSelectionTools,10);});
+    els.markdownContent.addEventListener('scroll',function(){floatTools.hidden=true;});
+    window.addEventListener('resize',function(){floatTools.hidden=true;}); floatTools.hidden=true;
+    var noteHeading = document.querySelector('.paper-note-heading');
+    noteHeading.insertBefore(els.notesLayoutSwitch, noteHeading.querySelector('.note-view-tabs'));
+    document.querySelector('.paper-note-footer-actions').append(els.expandPaperNote);
+    var tabs=node('div','quiet-note-tabs'); tabs.setAttribute('aria-label','笔记内容');
+    [['notes','笔记'],['annotations','批注'],['both','同时查看']].forEach(function(item){var b=node('button','',item[1]);b.type='button';b.dataset.noteTab=item[0];b.onclick=function(){selectNoteTab(item[0]);};tabs.append(b);});
+    var tabRow = node('div','quiet-note-tab-row'); tabRow.append(tabs,els.closeNotes);
+    document.querySelector('.notes-heading').after(tabRow);
+    document.querySelector('.notes-heading').remove();
+    els.closeNotes.title='收起批注栏'; els.closeNotes.setAttribute('aria-label','收起批注栏');
+    function selectNoteTab(tab){
+      if(!els.annotationEditor.classList.contains('hidden')) tab='annotations';
+      els.notesPanel.dataset.contentTab=tab;
+      tabs.querySelectorAll('button').forEach(function(b){b.setAttribute('aria-pressed',String(b.dataset.noteTab===tab));});
+    }
+    new MutationObserver(function(){if(!els.annotationEditor.classList.contains('hidden'))selectNoteTab('annotations');}).observe(els.annotationEditor,{attributes:true,attributeFilter:['class']});
+    window.paperbenchNoteTab = selectNoteTab;
+    selectNoteTab('notes');
+  }
+
   function api(url, options) {
     return fetch(url, options).then(function (response) {
       if (!response.ok) {
@@ -119,6 +255,7 @@
   }
 
   function renderTree() {
+    if (window.paperbenchQuietSync) window.paperbenchQuietSync();
     var query = state.query.trim();
     var filtered = state.papers.filter(function (paper) {
       return (state.filter === 'all' || paper.status === state.filter) &&
@@ -168,7 +305,7 @@
     var addedLabel = addedResult && !isNaN(addedDate.getTime()) ? (paper.addedTimeEstimated ? '约 ' : '') + addedDate.toLocaleString('zh-CN', { year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', hour12: false }) + ' 加入' : '';
     return '<div class="tree-row paper' + active + (attachments.length ? ' has-attachments' : '') + (searchResult ? ' search-result' : '') + '" data-paper="' + escapeHtml(paper.path) + '" style="padding-left:' + (8 + depth * 14) + 'px" title="' + escapeHtml(paper.path + (addedResult ? '\n' + (paper.addedTimeEstimated ? '入库时间估计：' : '入库时间：') + new Date(paper.addedAt).toLocaleString('zh-CN') : '')) + '">' +
       '<span class="tree-arrow">' + (attachments.length ? (expanded ? '▼' : '▶') : '') + '</span><span class="tree-icon">▤</span><span class="tree-label">' + (searchResult ? '<strong>' + escapeHtml(label || paper.name) + '</strong><small>' + escapeHtml((addedLabel ? addedLabel + ' · ' : '') + paper.path) + '</small>' : escapeHtml(label || paper.name)) + '</span>' +
-      (paper.favorite ? '<span class="favorite-marker" title="已收藏">★</span>' : '') +
+      (paper.favorite ? '<span class="favorite-marker" title="已收藏">' + interfaceIcon('star') + '</span>' : '') +
       '<span class="status-dot ' + escapeHtml(paper.status || 'unread') + '" title="' + statusLabel(paper.status) + '"></span></div>' +
       (attachments.length ? '<div class="tree-attachment-children' + (expanded ? '' : ' collapsed') + '">' + attachments.map(function (link) {
         return '<div class="tree-row attachment' + (state.activeAttachment === link.id || (link.kind === 'parsed' && state.currentPath === link.path) ? ' active' : '') + '" data-attachment="' + escapeHtml(link.id) + '" title="' + escapeHtml((/\.(mp4|webm|ogg|ogv|m4v)$/i.test(link.name) ? '视频附件，点击播放：' : '附件：') + link.name) + '"><span class="tree-arrow"></span><span class="tree-icon">' + attachmentIcon(link) + '</span><span class="tree-label">' + escapeHtml(link.name) + '</span></div>';
@@ -176,11 +313,11 @@
   }
 
   function attachmentIcon(link) {
-    if (link.kind === 'parsed') return '▤';
-    if (/\.pdf$/i.test(link.name)) return '▣';
-    if (/\.(mp4|webm|ogg|ogv|m4v)$/i.test(link.name)) return '🎞';
-    if (/\.zip$/i.test(link.name)) return '▧';
-    return '◇';
+    if (link.kind === 'parsed') return interfaceIcon('file');
+    if (/\.pdf$/i.test(link.name)) return interfaceIcon('file');
+    if (/\.(mp4|webm|ogg|ogv|m4v)$/i.test(link.name)) return interfaceIcon('film');
+    if (/\.zip$/i.test(link.name)) return interfaceIcon('archive');
+    return interfaceIcon('clip');
   }
 
   function renderTagTree(papers) {
@@ -644,7 +781,7 @@
       state.pdfReady = true; syncPdfAnnotations();
       if (pendingPdfCapture === state.currentPath) { pendingPdfCapture = null; pdfCommand('capture'); }
     }
-    if (data.kind === 'activity') state.readingSource = 'pdf';
+    if (data.kind === 'activity') { state.readingSource = 'pdf'; closeParseMenu(); document.querySelectorAll('.quiet-menu[open]').forEach(function(menu){menu.open=false;}); }
     if (data.kind === 'annotationClick') showAnnotationCard(data.id);
     if (data.kind === 'selection') {
       if (data.selection || (state.selectedText && state.selectedText.source === 'pdf')) acceptPdfSelection(data.selection);
@@ -691,7 +828,7 @@
     els.appShell.classList.toggle('explorer-collapsed', !!collapsed);
     els.explorerPanel.classList.toggle('collapsed', !!collapsed);
     els.toggleExplorer.setAttribute('aria-pressed', String(!collapsed));
-    els.toggleExplorer.textContent = collapsed ? '展开目录' : '收起目录';
+    els.toggleExplorer.textContent = '论文库';
     els.toggleExplorer.title = els.toggleExplorer.textContent;
     els.toggleExplorer.setAttribute('aria-label', els.toggleExplorer.title);
     if (!temporary) localStorage.setItem('ai-literature-reader.explorer-collapsed', String(!!collapsed));
@@ -702,7 +839,7 @@
     if (collapsed && state.notesExpanded) setNotesExpanded(false);
     els.notesPanel.classList.toggle('collapsed', !!collapsed);
     els.toggleNotes.setAttribute('aria-pressed', String(!collapsed));
-    els.toggleNotes.textContent = collapsed ? '展开批注栏' : '收起批注栏';
+    els.toggleNotes.textContent = '笔记';
     els.toggleNotes.title = els.toggleNotes.textContent;
     localStorage.setItem('ai-literature-reader.notes-collapsed', String(!!collapsed));
   }
@@ -710,6 +847,7 @@
   function setNotesLayout(layout, remember) {
     if (['balanced', 'notes', 'annotations'].indexOf(layout) < 0) layout = 'balanced';
     els.notesPanel.dataset.noteLayout = layout;
+
     els.notesLayoutSwitch.querySelectorAll('button').forEach(function (button) {
       button.setAttribute('aria-pressed', String(button.dataset.notesLayout === layout));
     });
@@ -722,7 +860,7 @@
     if (!temporary && state.notesLayoutAuto) state.notesLayoutAuto.ai = false;
     els.aiPanel.classList.toggle('collapsed', !!collapsed);
     els.toggleAi.setAttribute('aria-pressed', String(!collapsed));
-    els.toggleAi.textContent = collapsed ? '展开 AI' : '收起 AI';
+    els.toggleAi.textContent = 'AI';
     els.toggleAi.title = els.toggleAi.textContent;
     if (!temporary) localStorage.setItem('ai-literature-reader.ai-collapsed', String(!!collapsed));
     if (state.notesExpanded) fitNotesWidth();
@@ -797,6 +935,7 @@
   }
 
   function addAnnotationToNote(id) {
+    if (window.paperbenchNoteTab) window.paperbenchNoteTab('notes');
     if (!state.currentPaper) return;
     var annotation = state.currentPaper.review.annotations.find(function (item) { return item.id === id; });
     if (!annotation) return;
@@ -875,6 +1014,7 @@
       scheduleSave();
       clearActiveTextSelection();
       state.selectedText = null;
+      showAnnotationCard(annotation.id);
       showToast('译文已保存到批注');
     }).catch(function (error) {
       showToast('翻译失败：' + error.message);
@@ -1164,6 +1304,7 @@
   function commonEnd(a, b) { var i = 0; while (i < a.length && i < b.length && a[a.length - 1 - i] === b[b.length - 1 - i]) i++; return i; }
 
   function showAnnotationCard(id) {
+    if (window.paperbenchNoteTab) window.paperbenchNoteTab('annotations');
     var card = els.annotationList.querySelector('.annotation-card[data-id="' + cssEscape(id) + '"]');
     if (!card) return;
     setNotesCollapsed(false);
@@ -1173,6 +1314,7 @@
   }
 
   function focusAnnotation(id) {
+    if (window.paperbenchNoteTab) window.paperbenchNoteTab('annotations');
     setNotesCollapsed(false);
     Array.prototype.forEach.call(document.querySelectorAll('.annotation-highlight,.annotation-card'), function (element) { element.classList.remove('active'); });
     var marks = els.markdownContent.querySelectorAll('mark[data-annotation-id="' + cssEscape(id) + '"]');
@@ -1358,7 +1500,8 @@
 
   function updateFavoriteButton() {
     var favorite = !!(state.currentPaper && state.currentPaper.review.favorite);
-    els.favoritePaper.textContent = favorite ? '★ 已收藏' : '☆ 收藏';
+    els.favoritePaper.innerHTML = interfaceIcon('star') + '<span>' + (favorite ? '已收藏' : '收藏') + '</span>';
+    els.favoritePaper.setAttribute('aria-pressed',String(favorite));
     els.favoritePaper.title = favorite ? '取消收藏当前论文' : '收藏当前论文';
     els.favoritePaper.classList.toggle('active', favorite);
   }
@@ -1599,6 +1742,7 @@
   });
   els.sendSelectionToAi.addEventListener('click', sendSelectionToAi);
   els.addImageToNote.addEventListener('click', function () {
+    if (window.paperbenchNoteTab) window.paperbenchNoteTab('notes');
     if (!state.selectedImage || !state.currentPaper || !state.currentPaper.hasMarkdown) return;
     setNotesCollapsed(false);
     if (window.LiteraturePaperNotes.addImage(state.selectedImage)) showToast('图片已加入整篇笔记，可切换“阅读”查看，或继续填写自己的理解。');
@@ -1886,6 +2030,7 @@
       if (result.revision && result.revision !== state.libraryRevision) loadTree(true);
     }).catch(function () {});
   }, 12000);
+  initializeQuietInterface();
   applySidePanelWidths();
   setNotesLayout(localStorage.getItem('ai-literature-reader.notes-layout') || 'balanced', false);
   setExplorerCollapsed(localStorage.getItem('ai-literature-reader.explorer-collapsed') === 'true');
@@ -1895,7 +2040,15 @@
   document.getElementById('openCitations').addEventListener('click', function () {
     if (state.currentPaper) window.LiteratureCitations.open(state.currentPath);
   });
-  loadTree(false);
+  api('/api/library-view').then(function(prefs) {
+    if (['all','favorites','recent','added'].indexOf(prefs.scope) >= 0) state.scope = prefs.scope;
+    if (['all','unread','skimmed','deep'].indexOf(prefs.filter) >= 0) state.filter = prefs.filter;
+    if (['files','tags'].indexOf(prefs.viewMode) >= 0) state.viewMode = prefs.viewMode;
+  }).catch(function(error){showToast('浏览设置读取失败：'+error.message);}).then(function(){
+    window.paperbenchLibraryReady = true;
+    window.paperbenchQuietSync();
+    loadTree(false);
+  });
   setInterval(function () {
     if (state.currentPaper && els.mineruParse.disabled && !pdfTextBusy && !document.hidden) refreshLocalMinerU();
   }, 3000);
