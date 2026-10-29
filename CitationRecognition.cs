@@ -13,7 +13,7 @@ internal static partial class MinerULibraryReview
         string text = String.IsNullOrWhiteSpace(pdf) ? markdown ?? "" : pdf.Split('\f')[0];
         text = text.Replace("\u00ad", "");
         Match end = Regex.Match(text, @"(?im)^\s*(?:abstract|introduction|references)\b");
-        if (end.Success && end.Index > 100) text = text.Substring(0, end.Index);
+        if (end.Success && end.Index > 0) text = text.Substring(0, end.Index);
         return text.Substring(0, Math.Min(3500, text.Length));
     }
 
@@ -59,7 +59,14 @@ internal static partial class MinerULibraryReview
 
     private static bool CanAutoAcceptCitation(CitationScan scan, CitationMatch match, List<CitationMatch> alternatives)
     {
-        if (!CitationTitleMatches(scan.title, match.title) || !CitationAuthorMatches(match, scan.verificationText)) return false;
+        var titles = (scan.alternateTitles ?? new List<string>()).Concat(new[] { scan.title }).Where(x => !String.IsNullOrWhiteSpace(x)).Distinct().ToList();
+        bool identifierMatches = scan.candidates.Any(x => x.kind == "doi" && !String.IsNullOrEmpty(match.doi) && String.Equals(CleanDoi(x.doi), CleanDoi(match.doi), StringComparison.OrdinalIgnoreCase)) ||
+            scan.candidates.Any(x => x.kind == "arxiv" && !String.IsNullOrEmpty(match.arxiv) && (Regex.IsMatch(x.doi, @"v\d+$") ? x.doi == match.arxiv : Regex.Replace(x.doi, @"v\d+$", "") == Regex.Replace(match.arxiv, @"v\d+$", "")));
+        bool titleMatches = titles.Any(x => CitationTitleMatches(x, match.title));
+        // PDF small caps may split a word. Ignore these spaces only with a matching identifier.
+        if (!titleMatches && identifierMatches) titleMatches = titles.Any(x => NormalizeCitationEvidence(x).Replace(" ", "") == NormalizeCitationEvidence(match.title).Replace(" ", ""));
+        bool deferredAuthors = Regex.IsMatch(scan.verificationText ?? "", @"full author list.*(?:contributions|acknowledg)", RegexOptions.IgnoreCase);
+        if (!titleMatches || (!CitationAuthorMatches(match, scan.verificationText) && !(identifierMatches && deferredAuthors))) return false;
         var years = Regex.Matches(scan.verificationText ?? "", @"\b(?:19|20)\d{2}\b").Cast<Match>().Select(x => x.Value).Distinct().ToArray();
         if (years.Length > 0 && !String.IsNullOrEmpty(match.year) && !years.Contains(match.year)) return false;
         // Preserve the arXiv identity and explicit version even if a journal shares its title.
@@ -123,7 +130,14 @@ internal static partial class MinerULibraryReview
         {
             try
             {
-                if (clue.kind == "arxiv") matches.Add(GetArxivMatch(clue.doi));
+                if (clue.kind == "arxiv")
+                {
+                    var retrieved = ParseArxiv(CitationFetch("https://export.arxiv.org/api/query?id_list=" + Uri.EscapeDataString(clue.doi), "application/atom+xml"))
+                        .Where(x => Regex.Replace(x.arxiv ?? "", @"v\d+$", "") == Regex.Replace(clue.doi, @"v\d+$", "")).ToList();
+                    if (retrieved.Count == 0) throw new IOException("编号未返回结果。");
+                    matches.AddRange(retrieved);
+                    if (Regex.IsMatch(clue.doi, @"v\d+$") && retrieved.All(x => x.arxiv != clue.doi)) warnings.Add("查询结果的 arXiv 版本与论文不一致。");
+                }
                 else
                 {
                     var response = Obj(Json.DeserializeObject(CitationFetch("https://api.crossref.org/works/" + Uri.EscapeDataString(clue.doi), "application/json")));
@@ -137,17 +151,21 @@ internal static partial class MinerULibraryReview
         CitationMatch chosen = unique.FirstOrDefault(x => CanAutoAcceptCitation(scan, x, unique));
         if (chosen == null && scan.title.Length >= 4)
         {
-            string[] sources = hasArxiv ? new[] { "arxiv" } : new[] { "crossref", "arxiv" };
-            foreach (string source in sources)
+            string[] sources = hasArxiv ? new[] { "arxiv", "crossref" } : new[] { "crossref", "arxiv" };
+            foreach (string query in (scan.alternateTitles ?? new List<string>()).Concat(new[] { scan.title }).Where(x => !String.IsNullOrWhiteSpace(x)).Distinct().Take(3))
             {
-                try
+                foreach (string source in sources)
                 {
-                    if (source == "crossref") matches.AddRange(ParseCrossref(CitationFetch("https://api.crossref.org/works?rows=5&query.bibliographic=" + Uri.EscapeDataString(scan.title), "application/json")));
-                    else matches.AddRange(ParseArxiv(CitationFetch("https://export.arxiv.org/api/query?search_query=" + Uri.EscapeDataString("ti:\"" + scan.title.Replace("\"", " ") + "\"") + "&max_results=5", "application/atom+xml")));
+                    try
+                    {
+                        if (source == "crossref") matches.AddRange(ParseCrossref(CitationFetch("https://api.crossref.org/works?rows=5&query.bibliographic=" + Uri.EscapeDataString(query), "application/json")));
+                        else matches.AddRange(ParseArxiv(CitationFetch("https://export.arxiv.org/api/query?search_query=" + Uri.EscapeDataString("ti:\"" + query.Replace("\"", " ") + "\"") + "&max_results=5", "application/atom+xml")));
+                    }
+                    catch (Exception) { warnings.Add("部分标题检索未能完成，可重试或手动检索。"); }
+                    unique = matches.GroupBy(CitationMatchIdentity).Select(x => x.First()).ToList();
+                    chosen = unique.FirstOrDefault(x => CanAutoAcceptCitation(scan, x, unique));
+                    if (chosen != null) break;
                 }
-                catch (Exception) { warnings.Add(source == "arxiv" ? "arXiv 暂时无法查询，可稍后重试。" : "Crossref 暂时无法查询，可稍后重试。"); }
-                unique = matches.GroupBy(CitationMatchIdentity).Select(x => x.First()).ToList();
-                chosen = unique.FirstOrDefault(x => CanAutoAcceptCitation(scan, x, unique));
                 if (chosen != null) break;
             }
         }
@@ -159,7 +177,8 @@ internal static partial class MinerULibraryReview
         }
         else
         {
-            result.matches = unique.OrderByDescending(x => TitleSimilarity(scan.title, x.title)).Take(10).ToList();
+            foreach (var match in unique) match.similarity = TitleSimilarity(scan.title, match.title);
+            result.matches = unique.OrderByDescending(x => x.similarity).Take(10).ToList();
             result.status = result.matches.Count == 0 && scan.candidates.Count == 0 ? "not_found" : "review";
             result.reason = result.status == "not_found" ? "未找到可靠结果，请补充标题、编号或导入 BibTeX。" : "结果仍需确认（标题、作者、年份或版本不够明确）。请选用正确条目后保存。";
         }

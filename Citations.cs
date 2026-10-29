@@ -112,6 +112,37 @@ internal static partial class MinerULibraryReview
         }).ToArray();
     }
 
+    private static string PdfTextTool()
+    {
+        var candidates = new List<string> { Path.Combine(AppDirectory, "tools", "pdftotext.exe") };
+        foreach (string folder in (Environment.GetEnvironmentVariable("PATH") ?? "").Split(';'))
+            if (!String.IsNullOrWhiteSpace(folder)) candidates.Add(Path.Combine(folder.Trim('"'), "pdftotext.exe"));
+        // TeX Live is commonly installed outside PATH in a desktop-launched app.
+        string texRoot = @"C:\texlive";
+        if (Directory.Exists(texRoot))
+            foreach (string folder in Directory.GetDirectories(texRoot).OrderByDescending(x => x))
+                candidates.Add(Path.Combine(folder, "bin", "windows", "pdftotext.exe"));
+        return candidates.FirstOrDefault(File.Exists);
+    }
+
+    private static string ReadPdfHeader(string path)
+    {
+        string tool = PdfTextTool();
+        if (tool == null) return "";
+        var start = new ProcessStartInfo(tool, "-f 1 -l 3 -enc UTF-8 -layout \"" + path + "\" -") {
+            UseShellExecute = false, CreateNoWindow = true, RedirectStandardOutput = true,
+            RedirectStandardError = true, StandardOutputEncoding = Encoding.UTF8
+        };
+        using (Process process = Process.Start(start))
+        {
+            var output = process.StandardOutput.ReadToEndAsync();
+            var error = process.StandardError.ReadToEndAsync();
+            if (!process.WaitForExit(20000)) { process.Kill(); throw new IOException("PDF 提取超时，请输入 DOI 或导入 BibTeX。"); }
+            if (process.ExitCode != 0) throw new IOException("无法提取此 PDF 的文字，可能已加密或损坏。请输入 DOI 或导入 BibTeX。");
+            return output.Result;
+        }
+    }
+
     private static string ReadCitationText(string directory)
     {
         string file = PreferredPaperText(directory);
@@ -156,6 +187,7 @@ internal static partial class MinerULibraryReview
         public List<CitationClue> candidates { get; set; }
         public string title { get; set; }
         public string verificationText { get; set; }
+        public List<string> alternateTitles { get; set; }
         public string warning { get; set; }
         public string hint { get; set; }
     }
@@ -166,7 +198,11 @@ internal static partial class MinerULibraryReview
         if (pdf == null) throw new FileNotFoundException("找不到论文 PDF。");
         string text = "", warning = "";
         try { text = ReadCitationText(directory); } catch (Exception ex) { warning = ex.Message; }
+        string compatibilityText = "";
+        // Existing installations can still use pdftotext; it is never required.
+        try { compatibilityText = ReadPdfHeader(pdf); } catch { }
         var sources = new List<KeyValuePair<string, string>> { new KeyValuePair<string, string>("PDF 提取文字（前三页）", text) };
+        if (!String.IsNullOrWhiteSpace(compatibilityText)) sources.Add(new KeyValuePair<string, string>("PDF 兼容提取", compatibilityText));
         string markdown = Path.Combine(directory, "markdown.md");
         if (File.Exists(markdown))
             using (var reader = new StreamReader(markdown, Encoding.UTF8))
@@ -201,9 +237,14 @@ internal static partial class MinerULibraryReview
             if (id != "" && seen.Add("arxiv:" + id)) candidates.Insert(0, new CitationClue { doi = id, kind = "arxiv", source = source.Key, evidence = "arXiv 编号；请核对版本" });
         }
         string title = File.Exists(markdown) ? ReadParsedTitle(markdown) : "";
-        if (title == "") title = GuessCitationTitle(text);
-        if (String.IsNullOrWhiteSpace(text) && !sources.Any(x => x.Key == "Markdown 开头" && !String.IsNullOrWhiteSpace(x.Value)) && warning == "") warning = "尚无可用论文文字，或此 PDF 没有文字层。可使用精细解析，输入 DOI／arXiv 编号，或导入 BibTeX。";
-        return new CitationScan { candidates = candidates, title = title, verificationText = CitationHeaderEvidence(text, sources.FirstOrDefault(x => x.Key == "Markdown 开头").Value), warning = warning, hint = "候选可能属于参考文献，请查询后核对标题与作者，再保存。" };
+        string textTitle = GuessCitationTitle(text);
+        // The legacy tool uses physical layout: ignore wide right-margin notes.
+        string compatibilityTitle = GuessCitationTitle(String.Join("\n", compatibilityText.Split('\n').Select(x => x.TakeWhile(Char.IsWhiteSpace).Count() > 100 ? "" : Regex.Split(x.Trim(), @"\s{3,}")[0])));
+        if (title == "") title = textTitle;
+        if (title == "") title = compatibilityTitle;
+        var titles = new[] { title, textTitle, compatibilityTitle }.Where(x => !String.IsNullOrWhiteSpace(x)).Distinct().ToList();
+        if (String.IsNullOrWhiteSpace(text) && !sources.Any(x => x.Key == "Markdown 开头" && !String.IsNullOrWhiteSpace(x.Value)) && String.IsNullOrWhiteSpace(compatibilityText) && warning == "") warning = "尚无可用论文文字，或此 PDF 没有文字层。可使用精细解析，输入 DOI／arXiv 编号，或导入 BibTeX。";
+        return new CitationScan { candidates = candidates, title = title, alternateTitles = titles, verificationText = CitationHeaderEvidence(text, sources.FirstOrDefault(x => x.Key == "Markdown 开头").Value) + "\n" + CitationHeaderEvidence(compatibilityText, ""), warning = warning, hint = "候选可能属于参考文献，请查询后核对标题与作者，再保存。" };
     }
 
     private static object LookupCitation(string value)

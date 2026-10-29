@@ -1,3 +1,4 @@
+import { pdfTextContentToText } from './text-content.mjs';
 import * as pdfjs from './pdfjs/build/pdf.min.mjs';
 pdfjs.GlobalWorkerOptions.workerSrc = '/pdf-reader/pdfjs/build/pdf.worker.mjs';
 let busy = false;
@@ -14,8 +15,7 @@ window.PaperBenchPdfProcessing = {
       let characters = 0, total = 0;
       for (let number = 1; number <= pdf.numPages; number++) {
         const page = await pdf.getPage(number), content = await page.getTextContent();
-        const text = content.items.filter(item => typeof item.str === 'string')
-          .map(item => item.str + (item.hasEOL ? '\n' : ' ')).join('').trim();
+        const text = pdfTextContentToText(content);
         characters += text.replace(/\s/g, '').length;
         const part = `\n\n===== PDF 第 ${number} / ${pdf.numPages} 页 =====\n\n${text || '[本页未提取到文字]'}\n`;
         total += part.length;

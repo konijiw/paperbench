@@ -80,25 +80,32 @@ internal static partial class MinerULibraryReview
         return match.Success ? match.Groups["id"].Value : "";
     }
 
+    private static bool CitationTitleBoundary(string line)
+    {
+        if (Regex.IsMatch(line, @"https?://|\b[\w.-]+\.(?:com|org|edu|net)(?:/|$)|@|©|abstract|university|institute|department|correspondence|copyright|downloaded|transactions on|journal of|^robotics research$|^robotics: science and systems|original article|article reuse|\bvol\.\s*\d|research article|full author list|contributions and acknowledg|bytedance|\bet al\b|\bmember,?\s*ieee|\bsci\.\s*adv|^date\s*:|^preprint$|^\d+\s+of\s+\d+", RegexOptions.IgnoreCase)) return true;
+        if (Regex.Matches(line, @"[,;]").Count >= 2 || Regex.IsMatch(line, @"^[A-Z][a-z]+(?:\s+[A-Z]\.)?\s+[A-Z][a-z]+\s*,\s*[A-Z][a-z]+(?:\s+[A-Z]\.)?\s+[A-Z][a-z]+")) return true;
+        var groups = Regex.Split(line.Trim(), @"\s{3,}");
+        return groups.Length >= 2 && groups.Count(x => Regex.IsMatch(x, @"\b[A-Z][a-z]+\s+(?:[A-Z]\.\s*)?[A-Z][a-z]+\b")) >= 2;
+    }
     private static string GuessCitationTitle(string text)
     {
-        var lines = (text ?? "").Split('\n').Take(45).Select(x => x.TakeWhile(Char.IsWhiteSpace).Count() > 100 ? "" : Regex.Split(x.Trim(), @"\s{3,}")[0].Replace("\u00ad", "").Trim()).ToArray();
+        var lines = (text ?? "").Split('\n').Take(45).Select(x => x.Replace("\u00ad", "").Trim()).ToArray();
         for (int i = 0; i < lines.Length; i++)
         {
             string line = lines[i];
-            if (line.Length < 18 || line.Length > 220 || Regex.Matches(line, "[a-z]").Count < 8 ||
-                Regex.IsMatch(line, @"[,|@©]|\d|https?://|arxiv|abstract|research article|copyright|downloaded|university|institute|department", RegexOptions.IgnoreCase) ||
-                Regex.Matches(line, @"\b[a-zA-Z]\b").Count > 8) continue;
+            bool shortHeading = line.EndsWith(":") && Regex.Matches(line, "[a-zA-Z]").Count >= 4;
+            if ((!shortHeading && (line.Length < 18 || Regex.Matches(line, "[a-zA-Z]").Count < 12)) || line.Length > 220 ||
+                CitationTitleBoundary(line) || Regex.Matches(line, @"\b[a-zA-Z]\b").Count > 8) continue;
             string title = line;
             for (int j = i + 1; j < Math.Min(lines.Length, i + 5); j++)
             {
                 string next = lines[j];
                 if (next == "") continue;
-                if (Regex.IsMatch(next, @"[,|@©\d*]|abstract|university|institute|department", RegexOptions.IgnoreCase) || next.Length < 8 || Regex.Matches(next, "[a-z]").Count < 4) break;
+                if (CitationTitleBoundary(next) || next.Length < 8 || Regex.Matches(next, "[a-zA-Z]").Count < 4 || Regex.IsMatch(next,@"\d\s*[*†‡]?$")) break;
                 title += " " + next;
                 if (title.Length > 260) break;
             }
-            return Regex.Replace(title, @"\s+", " ").Trim();
+            return Regex.Replace(Regex.Replace(title, @"(?<=\p{L})-\s+(?=\p{Ll})", "-"), @"\s+", " ").Trim();
         }
         return "";
     }
