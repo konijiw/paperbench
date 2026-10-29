@@ -589,6 +589,7 @@
         showToast('AI 工作区切换失败：' + error.message);
       });
       refreshLocalMinerU();
+      ensurePaperText(path).catch(function () {});
       if (!state.currentPaper.hasMarkdown) {
         els.markdownContent.innerHTML = '';
         return;
@@ -614,8 +615,8 @@
     api('/api/local-mineru/status?paper=' + encodeURIComponent(path)).then(function (result) {
       if (!state.currentPaper || state.currentPaper.path !== path) return;
       els.mineruParse.dataset.available = result.available ? 'true' : 'false';
-      els.mineruParse.disabled = result.state === 'running' || pdfTextBusy;
-      els.mineruParse.textContent = result.state === 'running' ? '精细解析中…' : pdfTextBusy ? '提取中…' : '解析 PDF';
+      els.mineruParse.disabled = result.state === 'running';
+      els.mineruParse.textContent = result.state === 'running' ? '精细解析中…' : '解析 PDF';
       document.getElementById('pdfParseFine').disabled = !result.available || result.state === 'running' || (!paper.hasMarkdown && result.running >= result.capacity);
       els.mineruParse.title = result.message || (!result.available ? '选择本机 MinerU 安装目录' : result.running >= result.capacity ? '已有两篇论文正在解析' : '使用本机 MinerU 解析当前 PDF');
       if (result.state === 'completed') {
@@ -1791,7 +1792,6 @@
     api('/api/paper/open-folder', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ path: state.currentPath }) })
       .catch(function (error) { showToast('打开论文目录失败：' + error.message); });
   });
-  var pdfTextBusy = false;
   var pendingPdfCapture = null;
   var parseMenu = document.getElementById('pdfParseMenu');
   function closeParseMenu() { parseMenu.hidden = true; els.mineruParse.setAttribute('aria-expanded', 'false'); }
@@ -1803,7 +1803,8 @@
     try {
       var status = await api('/api/pdf-processing/status?paper=' + encodeURIComponent(path));
       if (path !== state.currentPath) return;
-      document.getElementById('pdfParseCleanupRow').hidden = !status.hasText && !status.hasFine;
+      document.getElementById('pdfParseCleanupRow').hidden = !status.canCleanText;
+      updatePaperTextStatus(path, status.hasFine ? '已有精细解析正文，AI 将优先使用。' : status.preferredTextPath ? 'AI 可读正文已准备好，无需手动提取。' : (paperTextMessages[path] || '打开论文后自动准备 AI 可读正文，无需手动提取。'));
       parseMenu.hidden = false; els.mineruParse.setAttribute('aria-expanded', 'true'); refreshLocalMinerU();
     } catch (error) { showToast(error.message); }
   });
@@ -1824,25 +1825,48 @@
       })
       .catch(function (error) { showToast(error.message); refreshLocalMinerU(); });
   };
-  document.getElementById('pdfParseText').onclick = async function () {
-    if (pdfTextBusy || !state.currentPaper) return;
-    var path = state.currentPath, cleanup = document.getElementById('pdfParseCleanup').checked;
-    closeParseMenu(); pdfTextBusy = true; els.mineruParse.disabled = true;
-    els.mineruParse.textContent = '提取中…'; refreshLocalMinerU();
-    try {
-      var status = await api('/api/pdf-processing/status?paper=' + encodeURIComponent(path));
-      if (!window.PaperBenchPdfProcessing) throw new Error('文本提取组件正在加载，请稍后重试');
-      var text = await window.PaperBenchPdfProcessing.extract(path, function (page, count) {
-        if (path !== state.currentPath) throw new Error('已切换论文，本次提取已取消');
-        if (path === state.currentPath) els.mineruParse.textContent = '提取 ' + page + '/' + count;
+  var paperTextMessages = Object.create(null), paperTextJobs = Object.create(null), paperTextQueue = Promise.resolve();
+  function updatePaperTextStatus(path, message) {
+    paperTextMessages[path] = message;
+    if (path === state.currentPath) document.getElementById('pdfTextStatus').textContent = message;
+  }
+  function ensurePaperText(path) {
+    if (!path) return Promise.resolve();
+    if (paperTextJobs[path]) return paperTextJobs[path];
+    function usePrepared(status) {
+      if (path === state.currentPath) window.AILiteratureChat.setPreferredText(status.preferredTextPath);
+      updatePaperTextStatus(path, status.hasFine ? '已有精细解析正文，AI 将优先使用。' : 'AI 可读正文已准备好，无需手动提取。');
+      return status.preferredTextPath;
+    }
+    // Ready Markdown/TXT never waits behind another paper's extraction.
+    var promise = api('/api/pdf-processing/status?paper=' + encodeURIComponent(path)).then(function(status) {
+      if (!status.needsText) return usePrepared(status);
+      updatePaperTextStatus(path, '正在自动准备 AI 可读正文，不影响阅读…');
+      var work = paperTextQueue.catch(function(){}).then(async function() {
+        // Recheck after queueing: a fine parse or another window may have finished.
+        status = await api('/api/pdf-processing/status?paper=' + encodeURIComponent(path));
+        if (!status.needsText) return usePrepared(status);
+        for (var attempt=0; !window.PaperBenchPdfProcessing && attempt<100; attempt++) await new Promise(function(resolve){setTimeout(resolve,100);});
+        if (!window.PaperBenchPdfProcessing) throw new Error('正文准备组件尚未加载，请重新打开论文');
+        var text = await window.PaperBenchPdfProcessing.extract(path, function(page,count){
+          updatePaperTextStatus(path, '正在准备 AI 可读正文 · '+page+'/'+count+' 页');
+        });
+        var result = await api('/api/pdf-processing/text', {method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({paper:path,signature:status.signature,text:text,removePrevious:false})});
+        if (path === state.currentPath) window.AILiteratureChat.setPreferredText(result.preferredTextPath);
+        updatePaperTextStatus(path, 'AI 可读正文已准备好，无需手动提取。');
+        return result.preferredTextPath;
       });
-      if (path !== state.currentPath) throw new Error('已切换论文，本次提取未保存');
-      var result = await api('/api/pdf-processing/text', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ paper: path, signature: status.signature, text: text, removePrevious: cleanup }) });
-      if (path === state.currentPath) window.AILiteratureChat.setPreferredText(result.preferredTextPath);
-      showToast(result.message); delete mineruCompletedSeen[path]; await loadTree(true);
-    } catch (error) { showToast(error.message); }
-    finally { pdfTextBusy = false; refreshLocalMinerU(); }
-  };
+      paperTextQueue = work.catch(function(){});
+      return work;
+    }).catch(function(error){
+      updatePaperTextStatus(path, '未能准备可读正文：'+error.message+'。可尝试精细解析，或使用选区和截图提问。');
+      throw error;
+    });
+    paperTextJobs[path] = promise;
+    promise.finally(function(){if(paperTextJobs[path]===promise)delete paperTextJobs[path];}).catch(function(){});
+    return promise;
+  }
+  window.PaperBenchEnsurePaperText = ensurePaperText;
   window.addEventListener('paperbench-request-pdf-capture', function () {
     if (!state.currentPaper) { showToast('请先打开论文'); return; }
     pendingPdfCapture = state.currentPath; setPdfCollapsed(false);
@@ -2050,6 +2074,6 @@
     loadTree(false);
   });
   setInterval(function () {
-    if (state.currentPaper && els.mineruParse.disabled && !pdfTextBusy && !document.hidden) refreshLocalMinerU();
+    if (state.currentPaper && els.mineruParse.disabled && !document.hidden) refreshLocalMinerU();
   }, 3000);
 })();

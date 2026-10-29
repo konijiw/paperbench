@@ -129,6 +129,23 @@
       view.renderContextAttachment();
       return context;
     };
+    const originalSend = view.send.bind(view);
+    let preparingSend = false;
+    view.send = async () => {
+      if (preparingSend || view.running || view.contextTransitioning) return;
+      const epoch = view.contextEpoch, paper = currentPaper, draft = view.elements.input.value;
+      const selected = view.context && (manager.getLiveSelection(view.context.attachmentID) || manager.getSelections(view.context.attachmentID)?.length);
+      if (paper && draft.trim() && !view.images.length && !selected && prefs.get('includeItemContext') && global.PaperBenchEnsurePaperText) {
+        preparingSend = true;
+        const status = document.createElement('div');status.className='paper-text-chat-status';status.setAttribute('role','status');status.textContent='正在准备论文全文，问题已保留，完成后发送…';view.elements.input.parentElement.append(status);
+        try {
+          await global.PaperBenchEnsurePaperText(paper.path);
+        } catch(error) { if (view.destroyed || view.contextEpoch !== epoch || currentPaper !== paper) return; view.showError(new Error('论文全文尚未准备好，问题已保留。可使用精细解析，或选中文字／截图提问。'+error.message)); return; }
+        finally { preparingSend = false; status.remove(); }
+        if (view.destroyed || view.contextEpoch !== epoch || currentPaper !== paper || view.elements.input.value !== draft) return;
+      }
+      return originalSend();
+    };
     await view.initialize();
     return view;
   }

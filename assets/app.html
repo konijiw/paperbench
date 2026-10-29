@@ -111,8 +111,8 @@
           <section class="pdf-pane">
             <div class="pane-label"><span>原始 PDF</span><span id="pdfName"></span><span id="mineruParseBar" class="mineru-parse-bar hidden"><button id="mineruParse" class="plain-text-button" type="button" title="选择解析方式" aria-expanded="false" aria-controls="pdfParseMenu">解析 PDF</button><div id="pdfParseMenu" class="pdf-parse-menu" hidden>
                 <button id="pdfParseFine" type="button" disabled>精细解析 <small>MinerU · 正文、公式和图片</small></button>
-                <button id="pdfParseText" type="button">文本提取 <small>保存全文为 pdf-text.txt</small></button>
-                <label id="pdfParseCleanupRow" hidden><input id="pdfParseCleanup" type="checkbox">清理另一种方式的解析内容</label>
+                <p id="pdfTextStatus" class="pdf-text-status" role="status">打开论文后自动准备 AI 可读正文，无需手动提取。</p>
+                <label id="pdfParseCleanupRow" hidden><input id="pdfParseCleanup" type="checkbox">精细解析成功后清理自动生成的 TXT</label>
                 <button id="pdfParseConfigure" class="pdf-parse-configure" type="button">设置 MinerU 位置…</button>
               </div></span><button id="collapsePdf" class="plain-icon" title="折叠 PDF">‹</button></div>
             <iframe id="pdfFrame" title="原始 PDF"></iframe>

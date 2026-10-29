@@ -49,7 +49,7 @@ let browser,page,url;
 try{
   url=await new Promise((resolve,reject)=>{let log='';host.stdout.on('data',b=>{log+=b;const m=/PDF_TEST_URL=(http:\/\/127\.0\.0\.1:\d+)/.exec(log);if(m)resolve(m[1]);});host.on('error',reject);setTimeout(()=>reject(Error('host timeout')),15000).unref();});
   const api=async(route,body)=>{const r=await fetch(url+route,body===undefined?{}:{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});return {ok:r.ok,data:await r.json()};};
-  browser=await chromium.launch({headless:true,executablePath:'C:/Program Files/Google/Chrome/Application/chrome.exe'});
+  browser=await chromium.launch({headless:true,executablePath:process.env.PDF_LAB_CHROME||'C:/Program Files/Google/Chrome/Application/chrome.exe'});
   const noCodex=await browser.newPage();
   await noCodex.route('**/api/ai/connect',route=>route.fulfill({status:503,json:{error:'本机未安装 Codex（模拟）'}}));
   await noCodex.goto(url);

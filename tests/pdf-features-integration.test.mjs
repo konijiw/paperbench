@@ -68,6 +68,10 @@ try{
         }
       });`});
   });
+  await page.route('**/assets/zcs/sidebar.js',async route=>{
+    const source=await readFile(path.join(project,'assets/codex-sidebar/sidebar.js'),'utf8');
+    await route.fulfill({contentType:'application/javascript',body:source+`;window.ZoteroCodexModules.Sidebar.SidebarView.prototype.send=async function(){window.__sent=(window.__sent||[]).concat([{paper:this.context.title,text:this.elements.input.value,preferred:this.context.preferredTextPath}]);};`});
+  });
   await page.route('**/api/local-mineru/status?*',route=>route.fulfill({json:{available:false,state:'idle',running:0,capacity:2}}));
   await page.addInitScript(()=>{localStorage.setItem('ai-literature-reader.ai-collapsed','false');localStorage.setItem('ai-literature-reader.notes-collapsed','true');});
   await page.goto(url);
@@ -75,75 +79,105 @@ try{
     await page.locator(`.tree-row.paper[data-paper="${name}"]`).click();
     await page.waitForFunction(name=>document.getElementById('paperMeta').textContent===name,name);
     await page.waitForFunction(name=>window.AILiteratureChat?.view?.contextTransitioning===false&&window.AILiteratureChat.view.context?.title===name,name);
-    if(await page.locator('#pdfRail').isVisible())await page.locator('#pdfRail').click();
+    if(await page.locator('[data-reading-mode=pdf]').isEnabled())await page.locator('[data-reading-mode=pdf]').click();
     await page.waitForFunction(name=>document.getElementById('pdfFrame').src.includes('paper='+name),name);
     const iframe=await page.locator('#pdfFrame').elementHandle(),frame=await iframe.contentFrame();
     await frame.waitForSelector('.page[data-page-number="1"] canvas');
     return frame;
   };
+  await page.waitForFunction(()=>!!window.PaperBenchPdfProcessing);
+  await page.evaluate(()=>{const extract=window.PaperBenchPdfProcessing.extract;window.__extracts=[];window.PaperBenchPdfProcessing.extract=async function(paper,...args){window.__extracts.push(paper);return extract.call(this,paper,...args);};});
   let frame=await open('only');
-  await page.locator('#mineruParse').click();await page.locator('#pdfParseMenu').waitFor({state:'visible'});
-  assert.equal(await page.locator('#pdfParseFine').isDisabled(),true);
-  assert.equal(await page.locator('#pdfParseText').isEnabled(),true);
-  await page.screenshot({path:path.join(root,'parse-menu.png')});
-  checks.push('inline chooser; unavailable MinerU disabled; text mode enabled');
-  await page.locator('#pdfParseText').click();
-  await page.waitForFunction(()=>document.getElementById('toast').textContent.includes('文本已保存'));
+  await page.evaluate(()=>window.PaperBenchEnsurePaperText('only'));
   const text=await readFile(path.join(library,'only/pdf-text.txt'),'utf8');
   assert.match(text,/Synthetic page 1/);assert.match(text,/Synthetic page 2/);assert.match(text,/2 \/ 2/);
-  assert.match(await page.evaluate(()=>window.AILiteratureChat.view.context.preferredTextPath),/pdf-text\.txt$/);
-  checks.push('all PDF pages extracted to sibling TXT with physical page markers');
-  // Updated file must never be overwritten on retry.
-  const sig=(await api('/api/pdf-processing/status?paper=only')).data.signature;
+  await page.locator('#mineruParse').click();await page.locator('#pdfParseMenu').waitFor({state:'visible'});
+  assert.equal(await page.locator('#pdfParseText').count(),0);assert.equal(await page.locator('#mineruParse').innerText(),'解析 PDF');
+  assert.match(await page.locator('#pdfTextStatus').innerText(),/准备好/);await page.keyboard.press('Escape');
+  const beforeCount=await page.evaluate(()=>window.__extracts.length);
+  await page.evaluate(()=>Promise.all([window.PaperBenchEnsurePaperText('only'),window.PaperBenchEnsurePaperText('only')]));
+  assert.equal(await page.evaluate(()=>window.__extracts.length),beforeCount);
+  checks.push('opening PDF auto extracts all pages once; ready TXT reused; no manual text button');
+  await open('dual');await page.evaluate(()=>window.PaperBenchEnsurePaperText('dual'));
+  assert.equal(await page.evaluate(()=>window.__extracts.includes('dual')),false);
+  assert.match((await api('/api/paper?path=dual')).data.preferredTextPath,/markdown\.md$/);
+  await writeFile(path.join(library,'dual/.paperbench-parsing.json'),JSON.stringify({active:'text'}));
+  assert.match((await api('/api/paper?path=dual')).data.preferredTextPath,/markdown\.md$/);
+  checks.push('existing Markdown prevents extraction and always wins over legacy text preference');
+  await open('foreign');await page.evaluate(()=>window.PaperBenchEnsurePaperText('foreign'));
+  assert.equal(await page.evaluate(()=>window.__extracts.includes('foreign')),false);
+  assert.equal(await readFile(path.join(library,'foreign/pdf-text.txt'),'utf8'),'User-owned text');
+  checks.push('user-provided TXT is reused without overwrite');
+  // PDF signature changes invalidate only program-generated, unmodified TXT.
+  const updated=await PDFDocument.create(),pg=updated.addPage([612,792]);pg.drawText('Updated PDF body for regeneration.',{x:50,y:700});
+  await writeFile(path.join(library,'only/source.pdf'),await updated.save());
+  assert.equal((await api('/api/pdf-processing/status?paper=only')).data.needsText,true);
+  assert.equal((await api('/api/paper?path=only')).data.preferredTextPath,null);
+  await page.evaluate(()=>window.PaperBenchEnsurePaperText('only'));
+  assert.match(await readFile(path.join(library,'only/pdf-text.txt'),'utf8'),/Updated PDF body/);
   await writeFile(path.join(library,'only/pdf-text.txt'),'User edit');
-  assert.equal((await api('/api/pdf-processing/text',{paper:'only',signature:sig,text:'replacement'})).ok,false);
+  await writeFile(path.join(library,'only/source.pdf'),bytes);
+  await page.evaluate(()=>window.PaperBenchEnsurePaperText('only'));
   assert.equal(await readFile(path.join(library,'only/pdf-text.txt'),'utf8'),'User edit');
-  const foreign=(await api('/api/pdf-processing/status?paper=foreign')).data.signature;
-  assert.equal((await api('/api/pdf-processing/text',{paper:'foreign',signature:foreign,text:'replacement'})).ok,false);
-  checks.push('modified and unrelated TXT files protected');
-  // A failed scan extraction does not delete old results or publish empty TXT.
-  await open('empty');await page.locator('#mineruParse').click();await page.locator('#pdfParseText').click();
-  await page.waitForFunction(()=>document.getElementById('toast').textContent.includes('没有可提取'));
+  checks.push('PDF changes regenerate stale generated text, while edited TXT is retained');
+  await open('empty');
+  await page.evaluate(()=>window.PaperBenchEnsurePaperText('empty').then(()=>{throw Error('unexpected success');},()=>{}));
   await assert.rejects(access(path.join(library,'empty/pdf-text.txt')));
-  checks.push('image-only/empty PDF reports no text and creates no misleading TXT');
-  const dualSig=(await api('/api/pdf-processing/status?paper=dual')).data.signature;
-  assert.equal((await api('/api/pdf-processing/text',{paper:'dual',signature:dualSig,text:'First text extraction'})).ok,true);
-  await access(path.join(library,'dual/markdown.md'));
-  assert.match((await api('/api/paper?path=dual')).data.preferredTextPath,/pdf-text\.txt$/);
-  await writeFile(path.join(library,'dual/structured_content.json'),'{"userEdited":true}');
-  checks.push('default preserves old parse; AI context follows selected parsing mode');
-  await open('dual');
-  await page.locator('#mineruParse').click();await page.locator('#pdfParseCleanup').check();await page.locator('#pdfParseText').click();
-  await page.waitForFunction(()=>document.getElementById('toast').textContent.includes('文本已保存'));
-  await assert.rejects(access(path.join(library,'dual/markdown.md')));
-  await assert.rejects(access(path.join(library,'dual/images/parsed.png')));
-  await access(path.join(library,'dual/images/personal.png'));await access(path.join(library,'dual/source.pdf'));
-  assert.equal(await readFile(path.join(library,'dual/structured_content.json'),'utf8'),'{"userEdited":true}');
-  checks.push('successful mode switch cleans only known old outputs; unrelated image and PDF retained');
-  // Existing fine results can be selected again, retaining edited TXT.
+  await page.locator('#mineruParse').click();assert.match(await page.locator('#pdfTextStatus').innerText(),/没有可提取/);await page.keyboard.press('Escape');
+  checks.push('scan/empty PDF leaves no misleading text and shows a readable preparation failure');
   await writeFile(path.join(library,'only/markdown.md'),'# Reused fine result');
   assert.equal((await api('/api/local-mineru/start',{paper:'only',removePrevious:'true'})).ok,true);
   assert.equal(await readFile(path.join(library,'only/pdf-text.txt'),'utf8'),'User edit');
-  checks.push('switching to existing fine result protects modified TXT');
+  assert.match((await api('/api/paper?path=only')).data.preferredTextPath,/markdown\.md$/);
+  checks.push('fine results take priority and cleanup preserves edited TXT');
   for(const name of ['roundtrip','fail-parse']){
-    const signature=(await api('/api/pdf-processing/status?paper='+name)).data.signature;
-    assert.equal((await api('/api/pdf-processing/text',{paper:name,signature,text:'Preserve until fine succeeds'})).ok,true);
-    await mkdir(path.join(library,name,'images'),{recursive:true});
-    await writeFile(path.join(library,name,'images/personal.png'),'personal');
+    await page.evaluate(p=>window.PaperBenchEnsurePaperText(p),name);
+    const saved=await readFile(path.join(library,name,'pdf-text.txt'),'utf8');
+    await mkdir(path.join(library,name,'images'),{recursive:true});await writeFile(path.join(library,name,'images/personal.png'),'personal');
     assert.equal((await api('/api/local-mineru/start',{paper:name,removePrevious:'true'})).ok,true);
-    let state='running';
-    for(let i=0;i<100&&state==='running';i++){
-      await new Promise(r=>setTimeout(r,100));state=(await api('/api/local-mineru/status?paper='+name)).data.state;
-    }
-    if(name==='roundtrip'){
-      assert.equal(state,'completed');await access(path.join(library,name,'markdown.md'));
-      await assert.rejects(access(path.join(library,name,'pdf-text.txt')));
-    }else{
-      assert.equal(state,'failed');assert.equal(await readFile(path.join(library,name,'pdf-text.txt'),'utf8'),'Preserve until fine succeeds');
-    }
+    let state='running';for(let i=0;i<100&&state==='running';i++){await new Promise(r=>setTimeout(r,100));state=(await api('/api/local-mineru/status?paper='+name)).data.state;}
+    if(name==='roundtrip'){assert.equal(state,'completed');await access(path.join(library,name,'markdown.md'));await assert.rejects(access(path.join(library,name,'pdf-text.txt')));}
+    else{assert.equal(state,'failed');assert.equal(await readFile(path.join(library,name,'pdf-text.txt'),'utf8'),saved);}
     await access(path.join(library,name,'images/personal.png'));
   }
-  checks.push('real fine-parse lifecycle with stub parser: merge existing images; cleanup after success only; failure retains TXT');
+  checks.push('real fine parse lifecycle: cleanup follows success; failure keeps TXT and unrelated images');
+  // A background save must not override Markdown arriving during extraction.
+  await mkdir(path.join(library,'race'),{recursive:true});await writeFile(path.join(library,'race/source.pdf'),bytes);
+  const raceSig=(await api('/api/pdf-processing/status?paper=race')).data.signature;
+  await writeFile(path.join(library,'race/markdown.md'),'# Newly completed Markdown');
+  const race=await api('/api/pdf-processing/text',{paper:'race',signature:raceSig,text:'Late text',removePrevious:true});
+  assert.equal(race.ok,true);assert.match(race.data.preferredTextPath,/markdown\.md$/);await assert.rejects(access(path.join(library,'race/pdf-text.txt')));
+  checks.push('late text save never replaces new Markdown or deletes fine outputs');
+  for(const name of ['wait-send','switch-send','citation-send']){await mkdir(path.join(library,name),{recursive:true});await writeFile(path.join(library,name,'source.pdf'),bytes);}
+  await page.locator('#refreshTree').click();await page.waitForSelector('.tree-row.paper[data-paper="wait-send"]');
+  await page.evaluate(()=>{const extract=window.PaperBenchPdfProcessing.extract;window.PaperBenchPdfProcessing.extract=async function(paper,...args){if(paper==='wait-send'||paper==='switch-send'||paper==='citation-send'){window.__holding=paper;await new Promise(resolve=>window.__releaseText=resolve);}return extract.call(this,paper,...args);};});
+  await open('wait-send');await page.waitForFunction(()=>window.__holding==='wait-send');
+  await page.evaluate(()=>Promise.race([window.PaperBenchEnsurePaperText('dual'),new Promise((_,reject)=>setTimeout(()=>reject(Error('Ready Markdown blocked by unrelated extraction')),1000))]));
+  await page.evaluate(()=>{const v=window.AILiteratureChat.view;v.elements.input.value='Summarize this whole paper';window.__pendingSend=v.send();});
+  await page.waitForSelector('.paper-text-chat-status');assert.equal(await page.evaluate(()=>window.__sent?.length||0),0);
+  assert.equal(await page.locator('.zcs-input').inputValue(),'Summarize this whole paper');
+  await page.evaluate(()=>window.__releaseText());await page.evaluate(()=>window.__pendingSend);
+  const sent=await page.evaluate(()=>window.__sent);assert.equal(sent.length,1);assert.equal(sent[0].paper,'wait-send');assert.match(sent[0].preferred,/pdf-text\.txt$/);
+  await open('switch-send');await page.waitForFunction(()=>window.__holding==='switch-send');
+  await page.evaluate(()=>{const v=window.AILiteratureChat.view;v.elements.input.value='Do not send to another paper';window.__pendingSend=v.send();});
+  await page.waitForSelector('.paper-text-chat-status');await open('foreign');await page.evaluate(()=>window.__releaseText());await page.evaluate(()=>window.__pendingSend);
+  assert.equal(await page.evaluate(()=>window.__sent.length),1);
+  assert.match(await readFile(path.join(library,'switch-send/pdf-text.txt'),'utf8'),/Synthetic page/);
+  assert.equal(await readFile(path.join(library,'foreign/pdf-text.txt'),'utf8'),'User-owned text');
+  checks.push('full-paper send waits without losing draft; switching papers cancels pending send but saves correct TXT');
+  let recognitionCalls=0;
+  await page.route('**/api/citation/recognize',async route=>{
+    recognitionCalls++;
+    assert.match(await readFile(path.join(library,'citation-send/pdf-text.txt'),'utf8'),/Synthetic page/);
+    const scan=(await api('/api/citation/scan?paper=citation-send')).data;
+    await route.fulfill({json:{status:'review',title:scan.title,candidates:scan.candidates,matches:[],reason:'PDF.js citation preparation verified',warning:scan.warning}});
+  });
+  await open('citation-send');await page.waitForFunction(()=>window.__holding==='citation-send');
+  await page.locator('#openCitations').click();await page.waitForTimeout(150);assert.equal(recognitionCalls,0);
+  await page.evaluate(()=>window.__releaseText());
+  await page.waitForFunction(()=>document.body.textContent.includes('PDF.js citation preparation verified'));
+  assert.equal(recognitionCalls,1);await page.keyboard.press('Escape');
+  checks.push('citation window waits for PDF.js text before recognizing, without external PDF tools');
   frame=await open('foreign');
   await page.locator('.zcs-capture-button').click();await frame.locator('.pb-capture-layer').waitFor();
   await frame.press('body','Escape');assert.equal(await frame.locator('.pb-capture-layer').count(),0);

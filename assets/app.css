@@ -373,3 +373,5 @@ button:focus-visible,summary:focus-visible{outline:2px solid #6e96ce;outline-off
 .pdf-unified-actions .quiet-menu-body>a:hover{background:#f0f3f8}.pdf-unified-actions .quiet-menu-body>button:hover{background:#f0f3f8}
 .quiet-menu-body .library-scope{gap:2px}.quiet-menu-body .library-scope button,.quiet-menu-body .library-scope .scope-shortcuts button{justify-content:flex-start;gap:9px;min-height:32px;height:32px;padding:6px 10px;font-size:12px;line-height:20px;border:0;margin:0;box-shadow:none}.quiet-menu-body .library-scope button svg{width:16px;height:16px}.quiet-menu-body .library-scope button span{white-space:nowrap}
 @media(max-width:1250px){#toggleImmersive{padding:0 8px;font-size:11px}.app-header .brand{flex-basis:125px;min-width:110px}}
+.pdf-text-status{margin:3px 4px 6px;padding:7px 6px;font-size:11px;line-height:1.65;color:#718096;white-space:normal}.pdf-parse-menu #pdfParseCleanupRow{align-items:flex-start;font-size:11px;line-height:1.5;padding:7px 9px}.pdf-parse-menu #pdfParseCleanupRow input{flex:none;margin-top:2px}
+.paper-text-chat-status{font-size:11px;color:#718096;padding:5px 8px;line-height:1.5}

@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
@@ -112,35 +112,36 @@ internal static partial class MinerULibraryReview
         }).ToArray();
     }
 
-    private static string PdfTextTool()
+    private static string ReadCitationText(string directory)
     {
-        var candidates = new List<string> { Path.Combine(AppDirectory, "tools", "pdftotext.exe") };
-        foreach (string folder in (Environment.GetEnvironmentVariable("PATH") ?? "").Split(';'))
-            if (!String.IsNullOrWhiteSpace(folder)) candidates.Add(Path.Combine(folder.Trim('"'), "pdftotext.exe"));
-        // TeX Live is commonly installed outside PATH in a desktop-launched app.
-        string texRoot = @"C:\texlive";
-        if (Directory.Exists(texRoot))
-            foreach (string folder in Directory.GetDirectories(texRoot).OrderByDescending(x => x))
-                candidates.Add(Path.Combine(folder, "bin", "windows", "pdftotext.exe"));
-        return candidates.FirstOrDefault(File.Exists);
-    }
-
-    private static string ReadPdfHeader(string path)
-    {
-        string tool = PdfTextTool();
-        if (tool == null) throw new InvalidOperationException("未找到 PDF 文本提取工具。请安装 TeX Live，或把 pdftotext 及其依赖放入程序旁 tools 文件夹；仍可输入 DOI 或导入 BibTeX。");
-        var start = new ProcessStartInfo(tool, "-f 1 -l 3 -enc UTF-8 -layout \"" + path + "\" -") {
-            UseShellExecute = false, CreateNoWindow = true, RedirectStandardOutput = true,
-            RedirectStandardError = true, StandardOutputEncoding = Encoding.UTF8
-        };
-        using (Process process = Process.Start(start))
+        string file = PreferredPaperText(directory);
+        if (file == null || !String.Equals(Path.GetExtension(file), ".txt", StringComparison.OrdinalIgnoreCase)) return "";
+        MaterialNoLinks(file);
+        var text = new StringBuilder();
+        using (var reader = new StreamReader(file, Encoding.UTF8))
         {
-            var output = process.StandardOutput.ReadToEndAsync();
-            var error = process.StandardError.ReadToEndAsync();
-            if (!process.WaitForExit(20000)) { process.Kill(); throw new IOException("PDF 提取超时，请输入 DOI 或导入 BibTeX。"); }
-            if (process.ExitCode != 0) throw new IOException("无法提取此 PDF 的文字，可能已加密或损坏。请输入 DOI 或导入 BibTeX。");
-            return output.Result;
+            string line = reader.ReadLine();
+            bool generated = line != null && line.StartsWith("PDF 文本提取 · 共 ", StringComparison.Ordinal);
+            int page = 0, read = 0;
+            while (line != null && read < 128 * 1024)
+            {
+                read += line.Length + 1;
+                if (generated)
+                {
+                    Match marker = Regex.Match(line, @"^===== PDF 第 (\d+) / \d+ 页 =====$");
+                    if (marker.Success)
+                    {
+                        page = Int32.Parse(marker.Groups[1].Value);
+                        if (page > 3) break;
+                        if (page > 1) text.Append('\f');
+                    }
+                    else if (page > 0) text.AppendLine(line);
+                }
+                else text.AppendLine(line);
+                line = reader.ReadLine();
+            }
         }
+        return String.Join("\f", text.ToString().Split('\f').Take(3));
     }
 
     private sealed class CitationClue
@@ -164,8 +165,8 @@ internal static partial class MinerULibraryReview
         string pdf = FindPdf(directory);
         if (pdf == null) throw new FileNotFoundException("找不到论文 PDF。");
         string text = "", warning = "";
-        try { text = ReadPdfHeader(pdf); } catch (Exception ex) { warning = ex.Message; }
-        var sources = new List<KeyValuePair<string, string>> { new KeyValuePair<string, string>("PDF 前三页", text) };
+        try { text = ReadCitationText(directory); } catch (Exception ex) { warning = ex.Message; }
+        var sources = new List<KeyValuePair<string, string>> { new KeyValuePair<string, string>("PDF 提取文字（前三页）", text) };
         string markdown = Path.Combine(directory, "markdown.md");
         if (File.Exists(markdown))
             using (var reader = new StreamReader(markdown, Encoding.UTF8))
@@ -201,7 +202,7 @@ internal static partial class MinerULibraryReview
         }
         string title = File.Exists(markdown) ? ReadParsedTitle(markdown) : "";
         if (title == "") title = GuessCitationTitle(text);
-        if (String.IsNullOrWhiteSpace(text) && warning == "") warning = "PDF 没有可提取的文本，可能是扫描件。请输入 DOI 或导入 BibTeX。";
+        if (String.IsNullOrWhiteSpace(text) && !sources.Any(x => x.Key == "Markdown 开头" && !String.IsNullOrWhiteSpace(x.Value)) && warning == "") warning = "尚无可用论文文字，或此 PDF 没有文字层。可使用精细解析，输入 DOI／arXiv 编号，或导入 BibTeX。";
         return new CitationScan { candidates = candidates, title = title, verificationText = CitationHeaderEvidence(text, sources.FirstOrDefault(x => x.Key == "Markdown 开头").Value), warning = warning, hint = "候选可能属于参考文献，请查询后核对标题与作者，再保存。" };
     }
 

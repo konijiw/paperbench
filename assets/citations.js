@@ -338,7 +338,14 @@
       run(function () {
         $('citeBib').disabled = true; $('citeKey').disabled = true;
         message('正在识别、核对文献信息，匹配充分时会自动保存…', 'recognizing'); $('citeCandidates').replaceChildren(); $('citeResults').replaceChildren();
-        return api('/api/citation/recognize', { paper: activePaper }).then(function (r) {
+        var paper = activePaper;
+        var prepare = window.PaperBenchEnsurePaperText ? window.PaperBenchEnsurePaperText(paper) : Promise.resolve();
+        // A scan without text still supports manual identifiers and filename clues.
+        return prepare.catch(function () {}).then(function () {
+          if (activePaper !== paper || !dialog.open) throw new Error('论文已切换或引用窗口已关闭，请重新打开后识别。');
+          return api('/api/citation/recognize', { paper: paper });
+        }).then(function (r) {
+          if (activePaper !== paper || !dialog.open) return;
           if (r.title) $('citeTitle').value = r.title;
           if (r.status === 'saved' || r.status === 'existing') {
             $('citeManual').open = false;

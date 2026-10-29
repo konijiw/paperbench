@@ -1,4 +1,4 @@
-﻿param([string]$Version = 'v0.2.0')
+﻿param([string]$Version = 'v0.2.1')
 $ErrorActionPreference = 'Stop'
 if ($Version -notmatch '^v\d+\.\d+\.\d+(?:-[a-zA-Z0-9.]+)?$') { throw '版本号格式应为 v0.1.2。' }
 $project = Split-Path -Parent $MyInvocation.MyCommand.Path
@@ -22,8 +22,8 @@ PaperBench $Version - Windows 便携版
 运行环境：Windows 10/11、.NET Framework 4.x、现代浏览器。
 直接阅读 PDF 无需 Python。AI 默认使用 Codex CLI，也可在 AI 设置中配置 OpenAI 兼容 API。
 API 的模型、对话关联和历史与 Codex 分开保存；更换电脑后需重新填写 API 密钥。
-PDF 精细解析需安装 MinerU，普通文本提取使用内置阅读器；
-自动从 PDF 提取引用信息需配置 pdftotext。具体步骤见 README.md。
+PDF 文字正文会在打开论文时自动准备，引用信息识别复用已有正文，无需额外配置文字提取工具。
+如需精细解析，可另行安装 MinerU；基础阅读、批注和笔记不依赖 MinerU。具体说明见 README.md。
 
 首次运行后，配置和笔记保存在 state 文件夹，附件和笔记图片保存在 attachments，
 提示词保存在 prompts；这些文件夹会按需自动创建在 EXE 旁。

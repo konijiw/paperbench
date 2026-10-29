@@ -14,6 +14,7 @@ internal static partial class MinerULibraryReview
         public string active { get; set; }
         public Dictionary<string, string> text { get; set; }
         public Dictionary<string, string> fine { get; set; }
+        public string textSignature { get; set; }
     }
     private sealed class PdfTextRequest
     {
@@ -26,18 +27,14 @@ internal static partial class MinerULibraryReview
     private static string PreferredPaperText(string directory)
     {
         string md = Path.Combine(directory, "markdown.md"), txt = Path.Combine(directory, "pdf-text.txt");
-        string manifestFile = ParseManifestPath(directory);
-        try
-        {
-            MaterialNoLinks(manifestFile);
-            if (File.Exists(manifestFile))
-            {
-                var manifest = Json.Deserialize<ParseManifest>(File.ReadAllText(manifestFile, Encoding.UTF8));
-                if (manifest != null && manifest.active == "text" && File.Exists(txt)) return txt;
-            }
-        }
-        catch { /* A damaged preference must not prevent opening a paper. */ }
-        return File.Exists(md) ? md : File.Exists(txt) ? txt : null;
+        if (File.Exists(md)) return md;
+        if (!File.Exists(txt) || new FileInfo(txt).Length == 0) return null;
+        var manifest = LoadParseManifest(directory);
+        // Never overwrite or discard text supplied/edited by the user.
+        bool owned = manifest.text != null && manifest.text.ContainsKey("pdf-text.txt") && ParseHash(txt) == manifest.text["pdf-text.txt"];
+        string pdf = FindPdf(directory);
+        if (owned && manifest.textSignature != null && pdf != null && manifest.textSignature != PdfSearchSignature(pdf)) return null;
+        return txt;
     }
     private static string ParseHash(string file)
     {
@@ -57,7 +54,7 @@ internal static partial class MinerULibraryReview
     private static ParseManifest LoadParseManifest(string directory)
     {
         string file = ParseManifestPath(directory); MaterialNoLinks(file);
-        if (File.Exists(file)) return Json.Deserialize<ParseManifest>(File.ReadAllText(file, Encoding.UTF8)) ?? new ParseManifest();
+        if (File.Exists(file)) { try { return Json.Deserialize<ParseManifest>(File.ReadAllText(file, Encoding.UTF8)) ?? new ParseManifest(); } catch { return new ParseManifest(); } }
         // Adopt only conventional parser outputs and image paths actually referenced
         // by Markdown. Never treat an entire images directory as disposable.
         var manifest = new ParseManifest();
@@ -88,14 +85,18 @@ internal static partial class MinerULibraryReview
         lock (PdfProcessingLock)
         {
             var manifest = LoadParseManifest(directory);
+            string preferred = PreferredPaperText(directory);
             return new { signature = PdfSearchSignature(pdf), hasText = File.Exists(Path.Combine(directory, "pdf-text.txt")),
-                hasFine = File.Exists(Path.Combine(directory, "markdown.md")), active = manifest.active ?? "" };
+                hasFine = File.Exists(Path.Combine(directory, "markdown.md")), active = manifest.active ?? "",
+                preferredTextPath = preferred, needsText = preferred == null,
+                canCleanText = manifest.text != null && manifest.text.ContainsKey("pdf-text.txt") };
         }
     }
     // Called only after the new output has been produced successfully. Old files
     // are recoverable; user-edited files are retained even when cleanup is chosen.
     private static string CompleteParsing(string directory, ParseManifest manifest, string mode, IEnumerable<string> names, bool removePrevious, bool reuse = false)
     {
+        if (mode == "text") removePrevious = false; // Background text never removes Markdown or images.
         var current = reuse && manifest.fine != null ? manifest.fine : ParseInventory(directory, names);
         var old = mode == "text" ? manifest.fine : manifest.text;
         int retained = 0;
@@ -105,6 +106,7 @@ internal static partial class MinerULibraryReview
             string note = LoadReview(directory).note ?? "";
             foreach (var entry in old)
             {
+                if (mode == "fine" && !String.Equals(entry.Key, "pdf-text.txt", StringComparison.OrdinalIgnoreCase)) continue;
                 string file = ParseFile(directory, entry.Key);
                 if (!File.Exists(file) || current.ContainsKey(entry.Key)) continue;
                 if (ParseHash(file) != entry.Value || note.IndexOf(entry.Key, StringComparison.OrdinalIgnoreCase) >= 0) { retained++; continue; }
@@ -135,12 +137,17 @@ internal static partial class MinerULibraryReview
             }
             if (pdf == null || PdfSearchSignature(pdf) != request.signature) throw new InvalidOperationException("提取期间 PDF 已变化，请重试。");
             var manifest = LoadParseManifest(directory);
+            string existingText = PreferredPaperText(directory);
+            if (existingText != null) {
+                WriteJson(stream, new { saved = false, reused = true, preferredTextPath = existingText, message = "已使用现有可读正文" }); return;
+            }
             string target = ParseFile(directory, "pdf-text.txt");
             if (File.Exists(target) && (manifest.text == null || !manifest.text.ContainsKey("pdf-text.txt") || ParseHash(target) != manifest.text["pdf-text.txt"]))
                 throw new InvalidOperationException("pdf-text.txt 已存在且不是可覆盖的原始提取结果，请先重命名保留。");
             // Save the previous inventory before publishing a replacement.
             AtomicWrite(ParseManifestPath(directory), Json.Serialize(manifest));
             AtomicWrite(target, request.text);
+            manifest.textSignature = request.signature;
             string warning = CompleteParsing(directory, manifest, "text", new[] { "pdf-text.txt" }, request.removePrevious);
             InterlockedIncrementLibrary();
             WriteJson(stream, new { saved = true, preferredTextPath = PreferredPaperText(directory), message = "文本已保存为论文目录中的 pdf-text.txt" + warning });

@@ -18,7 +18,7 @@ await page.goto(url);await page.waitForSelector('.quiet-library-controls');
 await page.locator('.tree-row.paper[data-paper="dual"]').click();await page.waitForSelector('#paperView:not(.hidden)');await page.waitForFunction(()=>document.getElementById('paperTitle').textContent==='dual');await page.waitForTimeout(500);
 await page.locator('[data-reading-mode="pdf"]').click();await page.waitForTimeout(300);
 assert(await page.locator('#readingLayout').evaluate(n=>n.classList.contains('markdown-collapsed')));
-await page.locator('#mineruParse').click();await page.locator('#pdfParseText').waitFor({state:'visible'});
+await page.locator('#mineruParse').click();await page.locator('#pdfTextStatus').waitFor({state:'visible'});assert.equal(await page.locator('#pdfParseText').count(),0);
 const parseBounds=await page.locator('#pdfParseMenu').boundingBox(),paneBounds=await page.locator('.pdf-pane').boundingBox();assert(parseBounds.x>=paneBounds.x);assert(parseBounds.x+parseBounds.width<=paneBounds.x+paneBounds.width+1);await page.screenshot({path:root+'/unified-pdf-parse.png'});
 await page.keyboard.press('Escape');await page.locator('#pdfMoreTools summary').click();assert(await page.locator('#rotatePdf').isVisible());await page.screenshot({path:root+'/unified-pdf-more.png'});await page.keyboard.press('Escape');
 await page.locator('#toggleImmersive').click();await page.waitForFunction(()=>!!document.fullscreenElement);await page.locator('#toggleImmersive').click();await page.waitForFunction(()=>!document.fullscreenElement);
