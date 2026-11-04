@@ -961,6 +961,7 @@ internal static partial class MinerULibraryReview
         public string scope { get; set; }
         public string filter { get; set; }
         public string viewMode { get; set; }
+        public string interfaceSize { get; set; }
     }
 
     private static void SaveLibraryView(Stream stream, string body)
@@ -970,7 +971,13 @@ internal static partial class MinerULibraryReview
             || !new[] { "all", "unread", "skimmed", "deep" }.Contains(value.filter)
             || !new[] { "files", "tags" }.Contains(value.viewMode))
             throw new InvalidOperationException("论文库显示设置无效。");
-        lock (StateLock) { LibraryView = value; SaveSettings(); }
+        lock (StateLock)
+        {
+            if (!new[] { "small", "medium", "large" }.Contains(value.interfaceSize))
+                value.interfaceSize = LibraryView.interfaceSize ?? "small";
+            LibraryView = value;
+            SaveSettings();
+        }
         WriteJson(stream, new { saved = true });
     }
 

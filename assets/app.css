@@ -276,6 +276,12 @@
 .app-header .header-panel-toggle,.app-header .button.secondary,.app-header .icon-button{background:#fffdf9;border:1px solid #dfdbd3;color:#605e58}
 .app-header .header-panel-toggle:hover,.app-header .button.secondary:hover,.app-header .icon-button:hover{background:#f0ece5;border-color:#cbc4b9;color:#343b40}
 .app-header .header-panel-toggle[aria-pressed="true"]{background:#ece7de;border-color:#d5cdbf;color:#45443e}
+.app-header .interface-size{width:48px;padding:0 5px;font-family:inherit;cursor:pointer}
+#headerPaperActions.hidden:has(.interface-size){display:flex!important}
+#headerPaperActions.hidden > :not(.panel-controls),
+#headerPaperActions.hidden .panel-controls > :not(.interface-size){display:none}
+html[data-interface-size="medium"] .header-controls,
+html[data-interface-size="large"] .header-controls{overflow-x:auto;overflow-y:hidden}
 .app-header .button.translate-button{background:#edf2ec;border-color:#d5dfd2;color:#526a50}
 .app-header .button.translate-button:hover{background:#e2ebdf;border-color:#c0d0bb}
 .app-header .button.accent{background:#c67650;border-color:#c67650;color:#fff}

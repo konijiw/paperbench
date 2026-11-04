@@ -18,6 +18,7 @@
     scope: 'all',
     query: '',
     viewMode: 'files',
+    interfaceSize: 'small',
     pendingTags: [],
     tagAction: null,
     translating: false,
@@ -80,7 +81,29 @@
       if (filters[prefs.filter]) state.filter = prefs.filter;
       if (['files','tags'].indexOf(prefs.viewMode) >= 0) state.viewMode = prefs.viewMode;
     } catch (_) {}
+    var sizePicker = node('select', 'header-panel-toggle interface-size');
+    sizePicker.id = 'interfaceSize';
+    sizePicker.setAttribute('aria-label', '界面大小');
+    sizePicker.title = '界面大小';
+    var scales = {small:1, medium:1.125, large:1.25};
+    [['small','小'],['medium','中'],['large','大']].forEach(function (size) {
+      var option = node('option', '', size[1]);
+      option.value = size[0];
+      sizePicker.append(option);
+    });
+    sizePicker.onchange = function () {
+      state.interfaceSize = sizePicker.value;
+      window.paperbenchQuietSync();
+    };
     window.paperbenchQuietSync = function () {
+      sizePicker.value = state.interfaceSize;
+      sizePicker.disabled = !window.paperbenchLibraryReady;
+      var root = document.documentElement;
+      if (root.dataset.interfaceSize !== state.interfaceSize) {
+        root.dataset.interfaceSize = state.interfaceSize;
+        root.style.zoom = state.interfaceSize === 'small' ? '' : String(scales[state.interfaceSize]);
+        window.dispatchEvent(new Event('resize'));
+      }
       scopeMenu.summary.textContent = scopes[state.scope] + ' ▾';
       modeMenu.summary.textContent = (state.viewMode === 'tags' ? '标签浏览' : '文件目录') + ' ▾';
       filterMenu.summary.textContent = '筛选' + (state.filter !== 'all' ? ' · 1' : '');
@@ -95,7 +118,7 @@
         b.onclick = function () { state[item[0]] = item[2]; renderTree(); }; chips.append(b);
       });
       chips.hidden = !chips.childElementCount;
-      var preferenceBody = JSON.stringify({scope:state.scope,filter:state.filter,viewMode:state.viewMode});
+      var preferenceBody = JSON.stringify({scope:state.scope,filter:state.filter,viewMode:state.viewMode,interfaceSize:state.interfaceSize});
       try { localStorage.setItem('paperbench.library-view', preferenceBody); } catch (_) {}
       if (window.paperbenchLibraryReady && window.paperbenchLibrarySaved !== preferenceBody) {
         window.paperbenchLibrarySaved = preferenceBody;
@@ -117,7 +140,7 @@
     });
     panelControls.prepend(modes); els.togglePdf.classList.add('quiet-legacy'); els.toggleMarkdown.classList.add('quiet-legacy');
     var immersive = node('button','header-panel-toggle','沉浸模式'); immersive.id='toggleImmersive'; immersive.type='button'; immersive.setAttribute('aria-pressed','false');
-    panelControls.append(immersive);
+    panelControls.append(immersive, sizePicker);
     immersive.onclick=async function(){
       try { if(document.fullscreenElement) await document.exitFullscreen(); else await document.documentElement.requestFullscreen(); }
       catch(error){showToast('无法切换全屏：'+error.message);}
@@ -149,7 +172,11 @@
       var selection=window.getSelection(), rect;
       if(state.selectedImage){var img=els.markdownContent.querySelector('.ai-image-selected'); if(img)rect=img.getBoundingClientRect();}
       else if(selection && selection.rangeCount)rect=selection.getRangeAt(0).getBoundingClientRect();
-      if(rect){floatTools.style.left=Math.max(8,Math.min(window.innerWidth-floatTools.offsetWidth-8,rect.left))+'px';floatTools.style.top=Math.max(8,Math.min(window.innerHeight-floatTools.offsetHeight-8,rect.top-floatTools.offsetHeight-8))+'px';}
+      if (rect) {
+        var scale = Number(document.documentElement.style.zoom) || 1;
+        floatTools.style.left = Math.max(8, Math.min(window.innerWidth / scale - floatTools.offsetWidth - 8, rect.left / scale)) + 'px';
+        floatTools.style.top = Math.max(8, Math.min(window.innerHeight / scale - floatTools.offsetHeight - 8, rect.top / scale - floatTools.offsetHeight - 8)) + 'px';
+      }
     }
     floatTools.addEventListener('mousedown',function(e){if(e.target.closest('button'))e.preventDefault();});
     new MutationObserver(syncSelectionTools).observe(els.sendSelectionToAi,{attributes:true,childList:true});
@@ -1659,7 +1686,8 @@
     var handle = event.currentTarget;
     var pointerId = event.pointerId;
     var startX = event.clientX;
-    var startWidth = panel.getBoundingClientRect().width;
+    var scale = Number(document.documentElement.style.zoom) || 1;
+    var startWidth = panel.offsetWidth;
     var finished = false;
     handle.classList.add('dragging');
     document.body.classList.add('side-panel-resizing');
@@ -1667,7 +1695,7 @@
     function move(e) {
       if (finished || e.pointerId !== pointerId) return;
       var dynamicMaximum = typeof maximum === 'function' ? maximum() : maximum;
-      var width = Math.max(Math.min(minimum, dynamicMaximum), Math.min(dynamicMaximum, startWidth + startX - e.clientX));
+      var width = Math.max(Math.min(minimum, dynamicMaximum), Math.min(dynamicMaximum, startWidth + (startX - e.clientX) / scale));
       panel.style.setProperty(cssVariable, Math.round(width) + 'px');
     }
     function finish(e) {
@@ -1680,7 +1708,7 @@
       try { if (handle.hasPointerCapture(pointerId)) handle.releasePointerCapture(pointerId); } catch (_) { }
       handle.classList.remove('dragging');
       document.body.classList.remove('side-panel-resizing');
-      localStorage.setItem(storageKey, String(Math.round(panel.getBoundingClientRect().width)));
+      localStorage.setItem(storageKey, String(panel.offsetWidth));
     }
     handle.addEventListener('pointermove', move);
     handle.addEventListener('pointerup', finish);
@@ -2065,6 +2093,7 @@
     if (state.currentPaper) window.LiteratureCitations.open(state.currentPath);
   });
   api('/api/library-view').then(function(prefs) {
+    if (['small','medium','large'].indexOf(prefs.interfaceSize) >= 0) state.interfaceSize = prefs.interfaceSize;
     if (['all','favorites','recent','added'].indexOf(prefs.scope) >= 0) state.scope = prefs.scope;
     if (['all','unread','skimmed','deep'].indexOf(prefs.filter) >= 0) state.filter = prefs.filter;
     if (['files','tags'].indexOf(prefs.viewMode) >= 0) state.viewMode = prefs.viewMode;

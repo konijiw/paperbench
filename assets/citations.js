@@ -84,9 +84,10 @@
     var rect = dialog.getBoundingClientRect(), gap = 8;
     left = Math.max(gap, Math.min(left, window.innerWidth - rect.width - gap));
     top = Math.max(gap, Math.min(top, window.innerHeight - Math.min(rect.height, window.innerHeight * 0.88) - gap));
-    dialog.style.left = Math.round(left) + 'px';
-    dialog.style.top = Math.round(top) + 'px';
-    dialog.style.maxHeight = Math.floor(Math.min(window.innerHeight * 0.88, window.innerHeight - top - gap)) + 'px';
+    var scale = Number(document.documentElement.style.zoom) || 1;
+    dialog.style.left = Math.round(left / scale) + 'px';
+    dialog.style.top = Math.round(top / scale) + 'px';
+    dialog.style.maxHeight = Math.floor(Math.min(window.innerHeight * 0.88, window.innerHeight - top - gap) / scale) + 'px';
     windowPosition = { left: left, top: top };
   }
   function centerCitationWindow() {
